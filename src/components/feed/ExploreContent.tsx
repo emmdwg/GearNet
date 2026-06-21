@@ -1,5 +1,6 @@
 "use client";
 
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { CreatePitUpdateModal } from "@/components/forms/CreatePitUpdateModal";
 import { CreatePostModal } from "@/components/forms/CreatePostModal";
 import { ActivityBell } from "@/components/activity/ActivityBell";
@@ -160,6 +161,8 @@ export function ExploreContent({ posts, pitUpdates, followingIds = [], suggestio
       </div>
 
       <div className="space-y-6 px-4 py-6">
+        {user ? <OnboardingChecklist /> : null}
+
         <PitUpdateStrip updates={pitUpdates} onAdd={handleAddPitUpdate} onOpen={(id) => setPitViewerId(id)} />
 
         <TrendingTags compact />

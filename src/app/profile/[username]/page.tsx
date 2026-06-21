@@ -1,15 +1,20 @@
 import { MessageUserButton } from "@/components/chat/MessageUserButton";
 import { FollowButton } from "@/components/profile/FollowButton";
+import { ProfileAvatarEdit } from "@/components/profile/ProfileAvatarEdit";
+import { ProfileCoverEdit } from "@/components/profile/ProfileCoverEdit";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
+import { UserSafetyMenu } from "@/components/social/UserSafetyMenu";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
+import { isBlocked } from "@/lib/blocking";
 import { getUserByUsername, getUserPosts, getUserVehicles } from "@/lib/db";
 import { getFollowStats } from "@/lib/social";
 import { getSession } from "@/lib/session";
-import { Bookmark, MapPin } from "lucide-react";
+import { Bookmark, MapPin, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
 type Props = { params: Promise<{ username: string }> };
 
@@ -19,6 +24,9 @@ export default async function ProfilePage({ params }: Props) {
   if (!user) notFound();
 
   const session = await getSession();
+  if (session?.user?.id && (await isBlocked(session.user.id, user.id))) {
+    redirect("/explore");
+  }
   const isOwnProfile = session?.user?.id === user.id;
   const [userVehicles, userPosts, followStats] = await Promise.all([
     getUserVehicles(user.id),
@@ -26,49 +34,71 @@ export default async function ProfilePage({ params }: Props) {
     getFollowStats(user.id, session?.user?.id),
   ]);
 
-  const coverImage = userVehicles[0]?.image ?? userPosts[0]?.image ?? null;
+  const coverImage =
+    user.coverImage || userVehicles[0]?.image || userPosts[0]?.image || null;
 
   return (
     <div className="mx-auto max-w-2xl pb-10">
-      {/* Cover banner */}
-      <div className="relative h-40 overflow-hidden bg-zinc-900 sm:h-52">
-        {coverImage ? (
-          <Image
-            src={coverImage}
-            alt=""
-            fill
-            sizes="640px"
-            className="scale-110 object-cover opacity-40 blur-[2px]"
-            priority
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 via-zinc-900 to-zinc-950" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
-      </div>
+      {isOwnProfile ? (
+        <ProfileCoverEdit coverImage={user.coverImage ?? ""} />
+      ) : (
+        <div className="relative h-40 overflow-hidden bg-zinc-900 sm:h-52">
+          {coverImage ? (
+            <Image
+              src={coverImage}
+              alt=""
+              fill
+              sizes="640px"
+              className="scale-110 object-cover opacity-40 blur-[2px]"
+              priority
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 via-zinc-900 to-zinc-950" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
+        </div>
+      )}
 
       <div className="px-4">
         {/* Avatar + identity */}
         <div className="-mt-12 flex items-end justify-between gap-4">
-          <div className="rounded-full ring-4 ring-zinc-950">
-            <Avatar src={user.avatar} alt={user.displayName} size="lg" ring />
-          </div>
-          <div className="mb-1 flex flex-wrap items-center justify-end gap-2">
-            <FollowButton userId={user.id} username={user.username} initialFollowing={followStats.isFollowing} />
+          {isOwnProfile ? (
+            <ProfileAvatarEdit avatar={user.avatar ?? ""} />
+          ) : (
+            <div className="rounded-full ring-4 ring-zinc-950">
+              <Avatar src={user.avatar} alt={user.displayName} size="lg" ring />
+            </div>
+          )}
+          <div className="mb-1 flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+            {!isOwnProfile ? (
+              <FollowButton userId={user.id} username={user.username} initialFollowing={followStats.isFollowing} />
+            ) : null}
             {isOwnProfile ? (
-              <Link
-                href="/saved"
-                className="flex items-center gap-2 rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-600 hover:text-white"
-              >
-                <Bookmark className="h-4 w-4" />
-                Saved
-              </Link>
+              <>
+                <Link
+                  href="/settings"
+                  className="flex items-center gap-2 rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition-colors hover:border-amber-500/40 hover:text-white"
+                >
+                  <Settings className="h-4 w-4" />
+                  Edit
+                </Link>
+                <Link
+                  href="/saved"
+                  className="flex items-center gap-2 rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-600 hover:text-white"
+                >
+                  <Bookmark className="h-4 w-4" />
+                  Saved
+                </Link>
+              </>
             ) : (
-              <MessageUserButton
-                userId={user.id}
-                username={user.username}
-                className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-600 hover:text-white"
-              />
+              <>
+                <UserSafetyMenu userId={user.id} username={user.username} />
+                <MessageUserButton
+                  userId={user.id}
+                  username={user.username}
+                  className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-600 hover:text-white"
+                />
+              </>
             )}
           </div>
         </div>
@@ -95,7 +125,7 @@ export default async function ProfilePage({ params }: Props) {
         </div>
 
         {/* Stats */}
-        <div className="mt-5 grid grid-cols-4 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-3 text-center">
+        <div className="mt-5 grid grid-cols-4 gap-2 rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-3 text-center backdrop-blur-sm">
           <Stat label="Posts" value={userPosts.length} />
           <Stat label="Followers" value={followStats.followers} href={`/profile/${user.username}/followers`} />
           <Stat label="Following" value={followStats.following} href={`/profile/${user.username}/following`} />

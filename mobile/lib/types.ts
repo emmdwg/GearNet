@@ -3,6 +3,7 @@ export type User = {
   username: string;
   displayName: string;
   avatar: string;
+  coverImage?: string;
   bio: string;
   location: string;
   interests: string[];
@@ -129,6 +130,8 @@ export type UserProfile = {
   bio: string;
   location: string;
   avatar: string;
+  coverImage?: string;
+  usernameChangedAt?: string | null;
 };
 
 export type Event = {

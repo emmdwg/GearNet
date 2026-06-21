@@ -83,8 +83,14 @@ export async function pingHealth(): Promise<boolean> {
 }
 
 export const api = {
-  register: (data: { email: string; password: string; username: string; displayName: string }) =>
-    fetchApi<{ id: string; username: string }>("/api/auth/register", {
+  register: (data: { email: string; password: string; username: string; displayName: string; avatar?: string }) =>
+    fetchApi<{ id: string; username: string; needsEmailVerification?: boolean }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  completeProfile: (data: { username: string; displayName: string; phone?: string; avatar?: string }) =>
+    fetchApi<{ id: string; username: string }>("/api/auth/complete-profile", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -303,4 +309,42 @@ export const api = {
     ),
 
   getTrendingTags: () => fetchApi<{ tags: { tag: string; count: number }[] }>("/api/tags/trending"),
+
+  getOnboarding: () =>
+    fetchApi<{
+      hasAvatar: boolean;
+      hasVehicle: boolean;
+      followCount: number;
+      completed: boolean;
+      dismissed: boolean;
+    }>("/api/onboarding"),
+
+  dismissOnboarding: () => fetchApi<{ ok: boolean }>("/api/onboarding", { method: "PATCH" }),
+
+  changeUsername: (username: string) =>
+    fetchApi<{ username: string }>("/api/settings/username", {
+      method: "PATCH",
+      body: JSON.stringify({ username }),
+    }),
+
+  getUsernameAvailability: () =>
+    fetchApi<{ allowed: boolean; nextChangeAt: string | null }>("/api/settings/username"),
+
+  blockUser: (userId: string) =>
+    fetchApi<{ ok: boolean }>("/api/users/block", { method: "POST", body: JSON.stringify({ userId }) }),
+
+  unblockUser: (userId: string) =>
+    fetchApi<{ ok: boolean }>(`/api/users/block?userId=${encodeURIComponent(userId)}`, { method: "DELETE" }),
+
+  getBlockStatus: (userId: string) =>
+    fetchApi<{ blocked: boolean }>(`/api/users/block?userId=${encodeURIComponent(userId)}`),
+
+  reportUser: (data: { userId: string; reason: string; details?: string }) =>
+    fetchApi<{ ok: boolean }>("/api/users/report", { method: "POST", body: JSON.stringify(data) }),
+
+  registerPushToken: (token: string, platform: "expo" | "web") =>
+    fetchApi<{ ok: boolean }>("/api/push/register", {
+      method: "POST",
+      body: JSON.stringify({ token, platform }),
+    }),
 };

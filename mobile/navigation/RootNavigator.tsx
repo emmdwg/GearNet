@@ -21,6 +21,7 @@ import { SearchScreen } from "../screens/SearchScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { SignInScreen } from "../screens/SignInScreen";
 import { SignUpScreen } from "../screens/SignUpScreen";
+import { VerifyEmailScreen } from "../screens/VerifyEmailScreen";
 import { UserGarageScreen } from "../screens/UserGarageScreen";
 import { colors } from "../lib/theme";
 import type { RootStackParamList, TabParamList } from "./types";
@@ -85,6 +86,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="SignUp"
         component={SignUpScreen}
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="VerifyEmail"
+        component={VerifyEmailScreen}
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen name="Profile" component={ProfileScreen} />

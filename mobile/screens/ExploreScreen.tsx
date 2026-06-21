@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { CreatePostForm, CreatePitUpdateForm } from "../components/forms/CreateForms";
+import { OnboardingBanner } from "../components/onboarding/OnboardingBanner";
 import { PitUpdateStrip } from "../components/feed/PitUpdateStrip";
 import { PostCard } from "../components/feed/PostCard";
 import { SuggestedBuilders } from "../components/social/SuggestedBuilders";
@@ -209,6 +210,7 @@ export function ExploreScreen() {
               onChangeText={setSearch}
               placeholder="Search builds, tags, users..."
             />
+            {user ? <OnboardingBanner /> : null}
             <TrendingTags compact />
             <View style={styles.tabs}>
               <Pressable

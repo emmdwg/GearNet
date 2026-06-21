@@ -1,4 +1,5 @@
 import { jsonArray, requireAuth } from "@/lib/api-helpers";
+import { resolveAvatarForUser } from "@/lib/avatar-upload";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { email, password, username, displayName } = body;
+    const { email, password, username, displayName, avatar } = body;
 
     if (!email || !password || !username || !displayName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: false,
       user_metadata: { username, displayName },
     });
 
@@ -40,17 +41,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error?.message ?? "Registration failed" }, { status: 400 });
     }
 
+    const avatarUrl = await resolveAvatarForUser(data.user.id, avatar);
+
     const user = await prisma.user.create({
       data: {
         id: data.user.id,
         email,
         username,
         displayName,
+        avatar: avatarUrl,
         interests: jsonArray([]),
       },
     });
 
-    return NextResponse.json({ id: user.id, username: user.username }, { status: 201 });
+    return NextResponse.json(
+      {
+        id: user.id,
+        username: user.username,
+        needsEmailVerification: true,
+      },
+      { status: 201 }
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Registration failed";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { UserCheck, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
   userId: string;
@@ -12,10 +12,18 @@ type Props = {
 };
 
 export function FollowButton({ userId, username, initialFollowing }: Props) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [following, setFollowing] = useState(initialFollowing);
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(false);
+
+  useEffect(() => {
+    setFollowing(initialFollowing);
+  }, [userId, initialFollowing]);
+
+  if (loading) {
+    return <div className="h-10 w-24 animate-pulse rounded-full bg-zinc-800" />;
+  }
 
   if (user?.id === userId) return null;
 
@@ -25,7 +33,7 @@ export function FollowButton({ userId, username, initialFollowing }: Props) {
       return;
     }
 
-    setLoading(true);
+    setLoadingAction(true);
     const next = !following;
     setFollowing(next);
     try {
@@ -44,7 +52,7 @@ export function FollowButton({ userId, username, initialFollowing }: Props) {
     } catch {
       setFollowing(!next);
     } finally {
-      setLoading(false);
+      setLoadingAction(false);
     }
   }
 
@@ -52,8 +60,8 @@ export function FollowButton({ userId, username, initialFollowing }: Props) {
     <button
       type="button"
       onClick={handleClick}
-      disabled={loading}
-      className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+      disabled={loadingAction}
+      className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
         following
           ? "border border-zinc-700 text-zinc-300 hover:border-zinc-600 hover:text-white"
           : "bg-amber-500 text-zinc-950 hover:bg-amber-400"

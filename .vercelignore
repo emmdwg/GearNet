@@ -1,0 +1,4 @@
+.env
+.env.*
+mobile/.env
+mobile/.env.*

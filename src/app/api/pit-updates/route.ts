@@ -1,11 +1,13 @@
 import { getPitUpdates } from "@/lib/db";
 import { requireAuth } from "@/lib/api-helpers";
+import { getSession } from "@/lib/session";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const updates = await getPitUpdates();
+  const session = await getSession();
+  const updates = await getPitUpdates(session?.user?.id);
   return NextResponse.json(updates);
 }
 

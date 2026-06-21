@@ -10,7 +10,16 @@ export async function GET() {
   const settings = await getOrCreateSettings(session!.user.id);
   const user = await prisma.user.findUnique({
     where: { id: session!.user.id },
-    select: { username: true, displayName: true, email: true, bio: true, location: true, avatar: true },
+    select: {
+      username: true,
+      displayName: true,
+      email: true,
+      bio: true,
+      location: true,
+      avatar: true,
+      coverImage: true,
+      usernameChangedAt: true,
+    },
   });
 
   return NextResponse.json({ settings, profile: user });
@@ -24,19 +33,35 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { settings, profile } = body as {
       settings?: Record<string, unknown>;
-      profile?: { displayName?: string; bio?: string; location?: string; avatar?: string };
+      profile?: {
+        displayName?: string;
+        bio?: string;
+        location?: string;
+        avatar?: string;
+        coverImage?: string;
+      };
     };
 
     if (profile) {
-      await prisma.user.update({
-        where: { id: session!.user.id },
-        data: {
-          displayName: profile.displayName,
-          bio: profile.bio,
-          location: profile.location,
-          avatar: profile.avatar,
-        },
-      });
+      const profileData: {
+        displayName?: string;
+        bio?: string;
+        location?: string;
+        avatar?: string;
+        coverImage?: string;
+      } = {};
+      if (profile.displayName !== undefined) profileData.displayName = profile.displayName;
+      if (profile.bio !== undefined) profileData.bio = profile.bio;
+      if (profile.location !== undefined) profileData.location = profile.location;
+      if (profile.avatar !== undefined) profileData.avatar = profile.avatar;
+      if (profile.coverImage !== undefined) profileData.coverImage = profile.coverImage;
+
+      if (Object.keys(profileData).length > 0) {
+        await prisma.user.update({
+          where: { id: session!.user.id },
+          data: profileData,
+        });
+      }
     }
 
     if (settings) {

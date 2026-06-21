@@ -12,6 +12,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AvatarPicker } from "../components/ui/AvatarPicker";
+import { CoverPicker } from "../components/ui/CoverPicker";
 import { LoadingState } from "../components/ui/LoadingState";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -77,17 +79,22 @@ function OptionRow({
 export function SettingsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshProfile } = useAuth();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState("");
+  const [usernameDraft, setUsernameDraft] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameHint, setUsernameHint] = useState("");
+  const [pushStatus, setPushStatus] = useState("");
 
   const load = useCallback(async () => {
     const data = await api.getSettings();
     setSettings(data.settings);
     setProfile(data.profile);
+    setUsernameDraft(data.profile.username);
   }, []);
 
   useEffect(() => {
@@ -96,13 +103,64 @@ export function SettingsScreen() {
       return;
     }
     load().finally(() => setLoading(false));
+
+    api
+      .getUsernameAvailability()
+      .then((d) => {
+        if (d.nextChangeAt) {
+          setUsernameHint(`Next change available ${new Date(d.nextChangeAt).toLocaleDateString()}`);
+        }
+      })
+      .catch(() => {});
   }, [user, navigation, load]);
+
+  async function saveCover(coverImage: string) {
+    try {
+      await api.updateSettings({ profile: { coverImage } });
+      await refreshProfile();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function enablePush() {
+    setPushStatus("Enabling...");
+    try {
+      const { registerForPushNotifications } = await import("../lib/push");
+      const token = await registerForPushNotifications();
+      setPushStatus(token ? "Push notifications enabled" : "Permission denied or unavailable on simulator");
+    } catch {
+      setPushStatus("Could not enable push notifications");
+    }
+  }
+
+  async function saveUsername() {
+    setUsernameError("");
+    try {
+      const data = await api.changeUsername(usernameDraft.trim());
+      setProfile({ ...profile!, username: data.username });
+      await refreshProfile();
+      setSaved("Username updated");
+    } catch (err) {
+      setUsernameError(err instanceof Error ? err.message : "Could not update username");
+    }
+  }
+
+  async function saveAvatar(avatar: string) {
+    try {
+      await api.updateSettings({ profile: { avatar } });
+      await refreshProfile();
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function save() {
     if (!settings || !profile) return;
     setSaving(true);
     try {
       await api.updateSettings({ settings, profile });
+      await refreshProfile();
       setSaved("Settings saved");
       setTimeout(() => setSaved(""), 2000);
     } catch {
@@ -127,7 +185,42 @@ export function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <View style={styles.profileCard}>
+          <AvatarPicker
+            value={profile.avatar ?? ""}
+            onChange={(v) => {
+              setProfile({ ...profile, avatar: v });
+              saveAvatar(v);
+            }}
+            label="Tap to change photo"
+            size={88}
+            uploadOnPick
+          />
+          <CoverPicker
+            value={profile.coverImage ?? ""}
+            onChange={(v) => {
+              setProfile({ ...profile, coverImage: v });
+              saveCover(v);
+            }}
+          />
+        </View>
+
         <SectionTitle>Account</SectionTitle>
+        <Text style={styles.fieldLabel}>Username</Text>
+        <View style={styles.usernameRow}>
+          <TextInput
+            value={usernameDraft}
+            onChangeText={setUsernameDraft}
+            autoCapitalize="none"
+            style={[styles.input, { flex: 1 }]}
+            placeholderTextColor={colors.textFaint}
+          />
+          <Pressable style={styles.updateBtn} onPress={saveUsername} disabled={usernameDraft === profile.username}>
+            <Text style={styles.updateBtnText}>Update</Text>
+          </Pressable>
+        </View>
+        {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
+        {usernameHint ? <Text style={styles.hintText}>{usernameHint}</Text> : null}
         <TextInput
           value={profile.displayName}
           onChangeText={(v) => setProfile({ ...profile, displayName: v })}
@@ -178,7 +271,19 @@ export function SettingsScreen() {
 
         <SectionTitle>Notifications</SectionTitle>
         <ToggleRow label="Email notifications" value={settings.emailNotifications} onChange={(v) => setSettings({ ...settings, emailNotifications: v })} />
-        <ToggleRow label="Push notifications" value={settings.pushNotifications} onChange={(v) => setSettings({ ...settings, pushNotifications: v })} />
+        <ToggleRow
+          label="Push notifications"
+          value={settings.pushNotifications}
+          onChange={(v) => {
+            setSettings({ ...settings, pushNotifications: v });
+            if (v) enablePush();
+          }}
+        />
+        {settings.pushNotifications ? (
+          <Pressable style={styles.pushBtn} onPress={enablePush}>
+            <Text style={styles.pushBtnText}>{pushStatus || "Enable device notifications"}</Text>
+          </Pressable>
+        ) : null}
         <ToggleRow label="Activity alerts" value={settings.activityAlerts} onChange={(v) => setSettings({ ...settings, activityAlerts: v })} />
         <ToggleRow label="Message alerts" value={settings.messageAlerts} onChange={(v) => setSettings({ ...settings, messageAlerts: v })} />
         <ToggleRow label="Meet reminders" value={settings.meetReminders} onChange={(v) => setSettings({ ...settings, meetReminders: v })} />
@@ -198,6 +303,14 @@ export function SettingsScreen() {
           <Text style={styles.saveBtnText}>{saving ? "Saving..." : "Save Changes"}</Text>
         </Pressable>
         {saved ? <Text style={styles.saved}>{saved}</Text> : null}
+
+        <SectionTitle>Quick links</SectionTitle>
+        <Pressable
+          style={styles.linkBtn}
+          onPress={() => navigation.navigate("Profile", { username: profile.username })}
+        >
+          <Text style={styles.linkBtnText}>View public profile</Text>
+        </Pressable>
 
         <SectionTitle>Account actions</SectionTitle>
         <Pressable
@@ -241,6 +354,44 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "700", color: colors.text },
   subtitle: { fontSize: 13, color: colors.textDim, marginTop: 2 },
   body: { padding: spacing.lg, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
+  profileCard: {
+    alignItems: "center",
+    paddingVertical: spacing.lg,
+    marginBottom: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardMuted,
+    gap: spacing.md,
+    width: "100%",
+  },
+  usernameRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  updateBtn: {
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  updateBtnText: { color: colors.textMuted, fontWeight: "600", fontSize: 13 },
+  errorText: { color: colors.danger, fontSize: 12 },
+  hintText: { color: colors.textDim, fontSize: 12, marginBottom: 4 },
+  pushBtn: {
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  pushBtnText: { color: colors.textMuted, fontSize: 13 },
+  linkBtn: {
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  linkBtnText: { color: colors.textMuted, fontSize: 14 },
   sectionTitle: {
     fontSize: 12,
     fontWeight: "600",

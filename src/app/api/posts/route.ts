@@ -1,12 +1,14 @@
 import { jsonArray, requireAuth } from "@/lib/api-helpers";
 import { getPosts } from "@/lib/db";
+import { getSession } from "@/lib/session";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { imagesToJson, normalizeImages, notifyFollowersOfNewPost, primaryImage } from "@/lib/social";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const posts = await getPosts();
+  const session = await getSession();
+  const posts = await getPosts(session?.user?.id);
   return NextResponse.json(posts);
 }
 

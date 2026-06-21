@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { RouteProp } from "@react-navigation/native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -16,6 +16,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { VehicleCard } from "../components/garage/VehicleCard";
 import { FollowButton } from "../components/social/FollowButton";
+import { UserSafetySheet } from "../components/social/UserSafetySheet";
+import { AvatarPicker } from "../components/ui/AvatarPicker";
+import { CoverPicker } from "../components/ui/CoverPicker";
 import { Avatar } from "../components/ui/Avatar";
 import { Badge } from "../components/ui/Badge";
 import { ErrorState } from "../components/ui/ErrorState";
@@ -32,7 +35,7 @@ export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { username } = route.params;
-  const { user: currentUser, signOut } = useAuth();
+  const { user: currentUser, loading: authLoading, signOut, refreshProfile } = useAuth();
   const [profile, setProfile] = useState<User | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -41,8 +44,9 @@ export function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [safetyOpen, setSafetyOpen] = useState(false);
 
-  const isOwnProfile = currentUser?.username === username;
+  const isOwnProfile = Boolean(profile && currentUser && currentUser.id === profile.id);
   const gridSize = (width - spacing.lg * 2 - 4) / 3;
 
   const load = useCallback(async () => {
@@ -59,8 +63,16 @@ export function ProfileScreen() {
   }, [username]);
 
   useEffect(() => {
+    setLoading(true);
+    setError("");
     load().finally(() => setLoading(false));
   }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -93,18 +105,44 @@ export function ProfileScreen() {
     }
   }
 
+  async function handleAvatarChange(url: string) {
+    if (!profile) return;
+    setProfile({ ...profile, avatar: url });
+    try {
+      await api.updateSettings({ profile: { avatar: url } });
+      await refreshProfile();
+    } catch {
+      await load();
+    }
+  }
+
+  async function handleCoverChange(url: string) {
+    if (!profile) return;
+    setProfile({ ...profile, coverImage: url });
+    try {
+      await api.updateSettings({ profile: { coverImage: url } });
+      await refreshProfile();
+    } catch {
+      await load();
+    }
+  }
+
   if (loading) return <LoadingState />;
   if (error || !profile) return <ErrorState message={error || "Profile not found"} />;
 
-  const cover = vehicles[0]?.image ?? posts[0]?.image ?? null;
+  const cover = profile.coverImage || vehicles[0]?.image || posts[0]?.image || null;
 
   return (
+    <>
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
     >
       {/* Cover */}
+      {isOwnProfile ? (
+        <CoverPicker value={profile.coverImage ?? ""} onChange={handleCoverChange} height={150} />
+      ) : (
       <View style={styles.cover}>
         {cover ? <Image source={{ uri: cover }} style={styles.coverImg} blurRadius={2} /> : null}
         <View style={styles.coverOverlay} />
@@ -112,38 +150,70 @@ export function ProfileScreen() {
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </Pressable>
       </View>
+      )}
+      {!isOwnProfile ? null : (
+        <Pressable onPress={() => navigation.goBack()} style={[styles.backFloating, { top: insets.top + 8 }]} hitSlop={8}>
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+      )}
 
       <View style={styles.bodyPad}>
         <View style={styles.avatarRow}>
-          <View style={styles.avatarRing}>
-            <Avatar src={profile.avatar} alt={profile.displayName} size="lg" />
-          </View>
+          {isOwnProfile ? (
+            <AvatarPicker
+              value={profile.avatar ?? ""}
+              onChange={handleAvatarChange}
+              label="Change photo"
+              size={72}
+              uploadOnPick
+            />
+          ) : (
+            <View style={styles.avatarRing}>
+              <Avatar src={profile.avatar} alt={profile.displayName} size="lg" />
+            </View>
+          )}
           <View style={styles.topActions}>
-            {isOwnProfile ? (
-              <Pressable style={styles.pillBtn} onPress={() => navigation.navigate("Saved")}>
-                <Ionicons name="bookmark-outline" size={15} color={colors.textMuted} />
-                <Text style={styles.pillText}>Saved</Text>
-              </Pressable>
+            {authLoading ? (
+              <View style={styles.actionSkeleton} />
+            ) : isOwnProfile ? (
+              <>
+                <Pressable style={styles.pillBtn} onPress={() => navigation.navigate("Settings")}>
+                  <Ionicons name="settings-outline" size={15} color={colors.textMuted} />
+                  <Text style={styles.pillText}>Edit</Text>
+                </Pressable>
+                <Pressable style={styles.pillBtn} onPress={() => navigation.navigate("Saved")}>
+                  <Ionicons name="bookmark-outline" size={15} color={colors.textMuted} />
+                  <Text style={styles.pillText}>Saved</Text>
+                </Pressable>
+              </>
             ) : (
-              <FollowButton
-                userId={profile.id}
-                username={profile.username}
-                initialFollowing={followStats.isFollowing}
-                size="sm"
-                onSignInRequired={() => navigation.navigate("SignIn")}
-                onChange={(following) =>
-                  setFollowStats((s) => ({
-                    ...s,
-                    isFollowing: following,
-                    followers: Math.max(0, s.followers + (following ? 1 : -1)),
-                  }))
-                }
-              />
+              <>
+                <FollowButton
+                  key={profile.id}
+                  userId={profile.id}
+                  username={profile.username}
+                  initialFollowing={followStats.isFollowing}
+                  size="sm"
+                  onSignInRequired={() => navigation.navigate("SignIn")}
+                  onChange={(following) =>
+                    setFollowStats((s) => ({
+                      ...s,
+                      isFollowing: following,
+                      followers: Math.max(0, s.followers + (following ? 1 : -1)),
+                    }))
+                  }
+                />
+                <Pressable style={styles.pillBtn} onPress={() => setSafetyOpen(true)}>
+                  <Ionicons name="ellipsis-horizontal" size={15} color={colors.textMuted} />
+                </Pressable>
+              </>
             )}
-            <Pressable style={styles.pillBtn} onPress={handleMessage}>
-              <Ionicons name="chatbubble-outline" size={15} color={colors.textMuted} />
-              <Text style={styles.pillText}>{isOwnProfile ? "Messages" : "Message"}</Text>
-            </Pressable>
+            {!authLoading ? (
+              <Pressable style={styles.pillBtn} onPress={handleMessage}>
+                <Ionicons name="chatbubble-outline" size={15} color={colors.textMuted} />
+                <Text style={styles.pillText}>{isOwnProfile ? "Messages" : "Message"}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -247,6 +317,16 @@ export function ProfileScreen() {
         <Text style={styles.empty}>No vehicles in the garage yet.</Text>
       )}
     </ScrollView>
+    {!isOwnProfile && profile ? (
+      <UserSafetySheet
+        userId={profile.id}
+        username={profile.username}
+        visible={safetyOpen}
+        onClose={() => setSafetyOpen(false)}
+        onBlocked={() => navigation.goBack()}
+      />
+    ) : null}
+    </>
   );
 }
 
@@ -254,6 +334,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingBottom: spacing.xl },
   cover: { height: 150, backgroundColor: colors.card, position: "relative" },
+  backFloating: { position: "absolute", left: spacing.lg, zIndex: 10, padding: 6 },
   coverImg: { ...StyleSheet.absoluteFillObject, opacity: 0.45 },
   coverOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(9,9,11,0.35)" },
   back: {
@@ -267,13 +348,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bodyPad: { paddingHorizontal: spacing.lg },
-  avatarRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -36 },
+  avatarRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -36, gap: 8 },
   avatarRing: {
     borderRadius: 999,
     borderWidth: 4,
     borderColor: colors.background,
+    flexShrink: 0,
   },
-  topActions: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  topActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginBottom: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  actionSkeleton: { width: 72, height: 32, borderRadius: radii.full, backgroundColor: colors.border },
   pillBtn: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,0 +1,41 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gearnet-two.vercel.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://kivtmsplxarhergwsmit.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpdnRtc3BseGFyaGVyZ3dzbWl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5OTk4MTMsImV4cCI6MjA5NzU3NTgxM30.pQGQ3PEiUTGQma7jHnRhP5i7Ej8_pnrjudkN9XNwDMU"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://gearnet-two.vercel.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://kivtmsplxarhergwsmit.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpdnRtc3BseGFyaGVyZ3dzbWl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5OTk4MTMsImV4cCI6MjA5NzU3NTgxM30.pQGQ3PEiUTGQma7jHnRhP5i7Ej8_pnrjudkN9XNwDMU"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "companyName": "GearNet"
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ export type User = {
   username: string;
   displayName: string;
   avatar: string;
+  coverImage?: string;
   bio: string;
   location: string;
   interests: string[];

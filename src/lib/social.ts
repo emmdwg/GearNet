@@ -1,4 +1,6 @@
 import { jsonArray, parseJsonArray } from "@/lib/api-helpers";
+import { sendPushToUser } from "@/lib/push";
+import { isBlocked } from "@/lib/blocking";
 import { prisma } from "@/lib/prisma";
 
 export type SocialTargetType = "post" | "pit_update";
@@ -58,10 +60,20 @@ export async function createNotification(data: {
 }) {
   if (data.userId === data.actorId) return;
 
-  const settings = await prisma.userSettings.findUnique({ where: { userId: data.userId } });
-  if (settings && !settings.activityAlerts) return;
+  const settings = await getOrCreateSettings(data.userId);
+  const isMessage = data.type === "message";
+  if (isMessage && !settings.messageAlerts) return;
+  if (!isMessage && !settings.activityAlerts) return;
 
   await prisma.notification.create({ data });
+
+  if (settings.pushNotifications) {
+    await sendPushToUser(data.userId, {
+      title: data.title,
+      body: data.body,
+      url: data.targetType && data.targetId ? `/activity` : undefined,
+    });
+  }
 }
 
 export async function toggleLike(userId: string, targetType: LikeTargetType, targetId: string) {
@@ -347,6 +359,9 @@ export async function getBookmarkIds(userId: string, targetType: BookmarkTargetT
 
 export async function toggleFollow(followerId: string, followingId: string) {
   if (followerId === followingId) return { following: false };
+  if (await isBlocked(followerId, followingId)) {
+    throw new Error("Action not allowed");
+  }
 
   const existing = await prisma.follow.findUnique({
     where: { followerId_followingId: { followerId, followingId } },

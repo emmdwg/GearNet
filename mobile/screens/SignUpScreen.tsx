@@ -15,24 +15,64 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth";
 import { colors, radii, sharedStyles, spacing } from "../lib/theme";
+import { AvatarPicker } from "../components/ui/AvatarPicker";
 import type { RootStackParamList } from "../navigation/types";
+
+type Mode = "email" | "phone";
 
 export function SignUpScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { signUp } = useAuth();
+  const { signUp, sendPhoneOtp, verifyPhoneSignup } = useAuth();
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<Mode>("email");
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [avatar, setAvatar] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit() {
+  async function handleEmailSubmit() {
     setLoading(true);
     setError("");
     try {
-      await signUp({ email: email.trim(), password, username: username.trim(), displayName: displayName.trim() });
+      await signUp({ email: email.trim(), password, username: username.trim(), displayName: displayName.trim(), avatar: avatar || undefined });
+      navigation.replace("VerifyEmail", { email: email.trim() });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSendOtp() {
+    setLoading(true);
+    setError("");
+    try {
+      await sendPhoneOtp(phone);
+      setOtpSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send code");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePhoneSubmit() {
+    setLoading(true);
+    setError("");
+    try {
+      await verifyPhoneSignup({
+        phone,
+        otp,
+        username: username.trim(),
+        displayName: displayName.trim(),
+        avatar: avatar || undefined,
+      });
       navigation.goBack();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -62,53 +102,83 @@ export function SignUpScreen() {
             </View>
           </View>
 
+          <AvatarPicker value={avatar} onChange={setAvatar} label="Add profile photo (optional)" size={88} />
+
+          <View style={styles.tabs}>
+            {(["email", "phone"] as const).map((tab) => (
+              <Pressable
+                key={tab}
+                style={[styles.tab, mode === tab && styles.tabActive]}
+                onPress={() => {
+                  setMode(tab);
+                  setError("");
+                }}
+              >
+                <Text style={[styles.tabText, mode === tab && styles.tabTextActive]}>
+                  {tab === "email" ? "Email" : "Phone"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          {(["Display Name", "Username", "Email", "Password"] as const).map((label, i) => {
-            const fields = [
-              { value: displayName, set: setDisplayName, secure: false, auto: "words" as const },
-              { value: username, set: setUsername, secure: false, auto: "none" as const },
-              { value: email, set: setEmail, secure: false, auto: "none" as const },
-              { value: password, set: setPassword, secure: true, auto: "none" as const },
-            ][i];
-            return (
-              <View key={label} style={{ marginTop: i === 0 ? 0 : 12 }}>
-                <Text style={styles.label}>{label}</Text>
-                <TextInput
-                  value={fields.value}
-                  onChangeText={fields.set}
-                  secureTextEntry={fields.secure}
-                  autoCapitalize={fields.auto}
-                  keyboardType={label === "Email" ? "email-address" : "default"}
-                  style={sharedStyles.input}
-                />
-              </View>
-            );
-          })}
+          <Text style={styles.label}>Display Name</Text>
+          <TextInput value={displayName} onChangeText={setDisplayName} autoCapitalize="words" style={sharedStyles.input} />
+          <Text style={[styles.label, { marginTop: 12 }]}>Username</Text>
+          <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" style={sharedStyles.input} />
 
-          <Pressable
-            style={[sharedStyles.amberButton, { marginTop: 20 }, loading && styles.disabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            <Text style={sharedStyles.amberButtonText}>{loading ? "Creating..." : "Create Account"}</Text>
-          </Pressable>
+          {mode === "email" ? (
+            <>
+              <Text style={[styles.label, { marginTop: 12 }]}>Email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={sharedStyles.input}
+              />
+              <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
+              <TextInput value={password} onChangeText={setPassword} secureTextEntry style={sharedStyles.input} />
+              <Pressable
+                style={[sharedStyles.amberButton, { marginTop: 20 }, loading && styles.disabled]}
+                onPress={handleEmailSubmit}
+                disabled={loading}
+              >
+                <Text style={sharedStyles.amberButtonText}>{loading ? "Creating..." : "Create Account"}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.label, { marginTop: 12 }]}>Phone</Text>
+              <View style={styles.phoneRow}>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  placeholder="5551234567"
+                  placeholderTextColor={colors.textFaint}
+                  style={[sharedStyles.input, { flex: 1 }]}
+                />
+                <Pressable style={styles.codeBtn} onPress={handleSendOtp} disabled={loading || !phone}>
+                  <Text style={styles.codeBtnText}>{otpSent ? "Resend" : "Send code"}</Text>
+                </Pressable>
+              </View>
+              <Text style={[styles.label, { marginTop: 12 }]}>Verification code</Text>
+              <TextInput value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} style={sharedStyles.input} />
+              <Pressable
+                style={[sharedStyles.amberButton, { marginTop: 20 }, (loading || !otpSent) && styles.disabled]}
+                onPress={handlePhoneSubmit}
+                disabled={loading || !otpSent}
+              >
+                <Text style={sharedStyles.amberButtonText}>{loading ? "Verifying..." : "Verify & Create Account"}</Text>
+              </Pressable>
+            </>
+          )}
 
           <Pressable onPress={() => navigation.replace("SignIn")} style={styles.linkWrap}>
             <Text style={styles.link}>Already have an account? Sign in</Text>
           </Pressable>
-
-          <Text style={styles.legal}>
-            By creating an account you agree to our{" "}
-            <Text style={styles.legalLink} onPress={() => navigation.navigate("Legal", { doc: "terms" })}>
-              Terms
-            </Text>{" "}
-            and{" "}
-            <Text style={styles.legalLink} onPress={() => navigation.navigate("Legal", { doc: "privacy" })}>
-              Privacy Policy
-            </Text>
-            .
-          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -126,7 +196,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardMuted,
     padding: spacing.xl,
   },
-  logoRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
   logoIcon: {
     width: 40,
     height: 40,
@@ -137,6 +207,11 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: "700", color: colors.text },
   subtitle: { fontSize: 14, color: colors.textDim },
+  tabs: { flexDirection: "row", gap: 8, marginBottom: 16, backgroundColor: colors.background, borderRadius: radii.sm, padding: 4 },
+  tab: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: radii.sm },
+  tabActive: { backgroundColor: colors.card },
+  tabText: { fontSize: 13, fontWeight: "600", color: colors.textDim },
+  tabTextActive: { color: colors.text },
   label: { fontSize: 14, color: colors.textDim, marginBottom: 6 },
   error: {
     backgroundColor: "rgba(248,113,113,0.1)",
@@ -146,9 +221,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 14,
   },
+  phoneRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  codeBtn: {
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  codeBtnText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
   disabled: { opacity: 0.5 },
   linkWrap: { marginTop: 24, alignItems: "center" },
   link: { color: colors.accent, fontSize: 14 },
-  legal: { marginTop: 16, textAlign: "center", fontSize: 12, color: colors.textFaint, lineHeight: 17 },
-  legalLink: { color: colors.accent },
 });

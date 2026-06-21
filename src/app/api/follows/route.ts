@@ -1,3 +1,4 @@
+import { isBlocked } from "@/lib/blocking";
 import { requireAuth } from "@/lib/api-helpers";
 import { getFollowStats, toggleFollow } from "@/lib/social";
 import { NextResponse } from "next/server";
@@ -15,6 +16,9 @@ export async function POST(request: Request) {
     }
     if (targetUserId === session!.user.id) {
       return NextResponse.json({ error: "You cannot follow yourself" }, { status: 400 });
+    }
+    if (await isBlocked(session!.user.id, targetUserId)) {
+      return NextResponse.json({ error: "Action not allowed" }, { status: 403 });
     }
 
     const result = await toggleFollow(session!.user.id, targetUserId);

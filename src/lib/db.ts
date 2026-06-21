@@ -1,9 +1,12 @@
 import { prisma } from "./prisma";
 import { parseJsonArray } from "./api-helpers";
+import { getBlockedUserIds } from "./blocking";
 import { serializeImagesField } from "./social";
 
-export async function getPosts() {
+export async function getPosts(viewerId?: string) {
+  const blockedIds = viewerId ? await getBlockedUserIds(viewerId) : [];
   const posts = await prisma.post.findMany({
+    where: blockedIds.length ? { userId: { notIn: blockedIds } } : undefined,
     include: { user: true },
     orderBy: { createdAt: "desc" },
   });
@@ -22,10 +25,14 @@ export async function getPosts() {
   }));
 }
 
-export async function getPitUpdates() {
+export async function getPitUpdates(viewerId?: string) {
   const now = new Date();
+  const blockedIds = viewerId ? await getBlockedUserIds(viewerId) : [];
   const updates = await prisma.pitUpdate.findMany({
-    where: { expiresAt: { gt: now } },
+    where: {
+      expiresAt: { gt: now },
+      ...(blockedIds.length ? { userId: { notIn: blockedIds } } : {}),
+    },
     include: { user: true },
     orderBy: { createdAt: "desc" },
   });
@@ -300,7 +307,8 @@ export async function getFollowingIds(userId: string) {
 }
 
 export async function getSuggestedUsers(userId?: string, excludeIds: string[] = [], limit = 5) {
-  const exclude = [...new Set([...excludeIds, ...(userId ? [userId] : [])])];
+  const blockedIds = userId ? await getBlockedUserIds(userId) : [];
+  const exclude = [...new Set([...excludeIds, ...blockedIds, ...(userId ? [userId] : [])])];
 
   const users = await prisma.user.findMany({
     where: exclude.length ? { id: { notIn: exclude } } : {},
@@ -517,6 +525,7 @@ function serializeUser(user: {
   username: string;
   displayName: string;
   avatar: string | null;
+  coverImage?: string | null;
   bio: string | null;
   location: string | null;
   interests: string;
@@ -527,6 +536,7 @@ function serializeUser(user: {
     username: user.username,
     displayName: user.displayName,
     avatar: user.avatar ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
+    coverImage: user.coverImage ?? "",
     bio: user.bio ?? "",
     location: user.location ?? "",
     interests: parseJsonArray(user.interests),

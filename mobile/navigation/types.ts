@@ -5,6 +5,7 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<TabParamList> | undefined;
   SignIn: undefined;
   SignUp: undefined;
+  VerifyEmail: { email: string };
   Profile: { username: string };
   ChatThread: {
     conversationId: string;

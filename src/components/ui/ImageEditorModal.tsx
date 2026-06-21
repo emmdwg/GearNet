@@ -8,9 +8,10 @@ type Props = {
   imageSrc: string;
   onClose: () => void;
   onSave: (editedDataUrl: string) => void;
+  defaultCropMode?: "free" | "square" | "landscape";
 };
 
-export function ImageEditorModal({ open, imageSrc, onClose, onSave }: Props) {
+export function ImageEditorModal({ open, imageSrc, onClose, onSave, defaultCropMode = "free" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [rotation, setRotation] = useState(0);
@@ -21,7 +22,7 @@ export function ImageEditorModal({ open, imageSrc, onClose, onSave }: Props) {
     if (!open) return;
     setRotation(0);
     setBrightness(100);
-    setCropMode("free");
+    setCropMode(defaultCropMode);
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {

@@ -7,8 +7,8 @@ export default async function ExplorePage() {
   const session = await getSession();
   const followingIds = session?.user?.id ? await getFollowingIds(session.user.id) : [];
   const [posts, pitUpdates, suggestions, likedPostIds] = await Promise.all([
-    getPosts(),
-    getPitUpdates(),
+    getPosts(session?.user?.id),
+    getPitUpdates(session?.user?.id),
     getSuggestedUsers(session?.user?.id, followingIds, 5),
     session?.user?.id ? getLikedPostIds(session.user.id) : Promise.resolve([]),
   ]);

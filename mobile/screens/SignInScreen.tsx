@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth";
+import { formatAuthError, isEmailNotConfirmedError } from "../lib/auth-errors";
 import { colors, radii, sharedStyles, spacing } from "../lib/theme";
 import type { RootStackParamList } from "../navigation/types";
 
@@ -21,19 +22,23 @@ export function SignInScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { signIn } = useAuth();
   const insets = useSafeAreaInsets();
-  const [email, setEmail] = useState("mike@gearnet.app");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit() {
     setLoading(true);
     setError("");
+    setNeedsVerification(false);
     try {
       await signIn(email.trim(), password);
       navigation.goBack();
-    } catch {
-      setError("Invalid email or password");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Invalid email or password";
+      if (isEmailNotConfirmedError(message)) setNeedsVerification(true);
+      setError(formatAuthError(message));
     } finally {
       setLoading(false);
     }
@@ -64,6 +69,11 @@ export function SignInScreen() {
           </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
+          {needsVerification ? (
+            <Pressable onPress={() => navigation.navigate("VerifyEmail", { email: email.trim() })}>
+              <Text style={styles.link}>Resend verification email</Text>
+            </Pressable>
+          ) : null}
 
           <Text style={styles.label}>Email</Text>
           <TextInput
@@ -93,7 +103,6 @@ export function SignInScreen() {
           <Pressable onPress={() => navigation.replace("SignUp")} style={styles.linkWrap}>
             <Text style={styles.link}>No account? Create one</Text>
           </Pressable>
-          <Text style={styles.demo}>Demo: mike@gearnet.app / password123</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

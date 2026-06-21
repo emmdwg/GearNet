@@ -20,6 +20,8 @@ export const metadata: Metadata = {
     "The automotive social network. Showcase your garage, explore builds, find meets, trade parts, and log maintenance.",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{

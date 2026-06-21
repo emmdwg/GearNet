@@ -5,8 +5,11 @@ import { Pool } from "pg";
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createPrismaClient() {
-  // Prefer direct connection — Supabase transaction pooler can fail locally with Prisma adapter
-  const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+  // Vercel/serverless: use DATABASE_URL (Supabase pooler). Local dev: prefer direct connection.
+  const connectionString =
+    process.env.VERCEL === "1"
+      ? (process.env.DATABASE_URL ?? process.env.DIRECT_URL)
+      : (process.env.DIRECT_URL ?? process.env.DATABASE_URL);
   if (!connectionString) {
     throw new Error("Missing DATABASE_URL (or DIRECT_URL) for PostgreSQL connection");
   }

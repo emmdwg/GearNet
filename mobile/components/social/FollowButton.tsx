@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
@@ -25,7 +25,11 @@ export function FollowButton({
   const [following, setFollowing] = useState(initialFollowing);
   const [loading, setLoading] = useState(false);
 
-  if (user && (user.id === userId || user.username === username)) return null;
+  useEffect(() => {
+    setFollowing(initialFollowing);
+  }, [userId, initialFollowing]);
+
+  if (user && user.id === userId) return null;
 
   async function toggle() {
     if (!user) {

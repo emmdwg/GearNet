@@ -1,3 +1,5 @@
+import { isBlocked } from "@/lib/blocking";
+import { createNotification } from "@/lib/social";
 import { getConversationMessages } from "@/lib/db";
 import { requireAuth } from "@/lib/api-helpers";
 import { broadcastChatMessage } from "@/lib/realtime";
@@ -39,6 +41,14 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const otherParticipant = await prisma.conversationParticipant.findFirst({
+      where: { conversationId: id, userId: { not: session!.user.id } },
+      select: { userId: true },
+    });
+    if (otherParticipant && (await isBlocked(session!.user.id, otherParticipant.userId))) {
+      return NextResponse.json({ error: "Cannot message this user" }, { status: 403 });
+    }
+
     const { content } = await request.json();
     if (!content?.trim()) {
       return NextResponse.json({ error: "Message content required" }, { status: 400 });
@@ -67,6 +77,18 @@ export async function POST(request: Request, { params }: Params) {
     };
 
     await broadcastChatMessage(id, payload);
+
+    if (otherParticipant) {
+      await createNotification({
+        userId: otherParticipant.userId,
+        actorId: session!.user.id,
+        type: "message",
+        targetType: "conversation",
+        targetId: id,
+        title: "New message",
+        body: `${message.sender.displayName}: ${message.content.slice(0, 80)}`,
+      });
+    }
 
     return NextResponse.json(payload, { status: 201 });
   } catch {
