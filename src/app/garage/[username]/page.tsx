@@ -1,9 +1,13 @@
 import { BuildLogCard, VehicleCard } from "@/components/garage/VehicleCard";
+import { PrivateProfileBanner } from "@/components/profile/PrivateProfileBanner";
 import { getUserByUsername, getUserVehicles } from "@/lib/db";
-import { MapPin } from "lucide-react";
+import { isBlocked } from "@/lib/blocking";
+import { getProfileViewContext } from "@/lib/privacy";
+import { getSession } from "@/lib/session";
+import { Lock, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 type Props = { params: Promise<{ username: string }> };
 
@@ -11,6 +15,25 @@ export default async function UserGaragePage({ params }: Props) {
   const { username } = await params;
   const user = await getUserByUsername(username);
   if (!user) notFound();
+
+  const session = await getSession();
+  if (session?.user?.id && (await isBlocked(session.user.id, user.id))) {
+    redirect("/explore");
+  }
+
+  const view = await getProfileViewContext(user.id, session?.user?.id);
+  if (!view.canViewGarage) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10">
+        <PrivateProfileBanner isFollowing={view.isFollowing} isPrivate={view.isPrivate} />
+        <div className="mt-6 text-center">
+          <Link href={`/profile/${user.username}`} className="text-sm text-amber-400 hover:underline">
+            Back to profile
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const userVehicles = await getUserVehicles(user.id);
   const allBuildLogs = userVehicles.flatMap((v) => v.buildLogs);
@@ -29,10 +52,12 @@ export default async function UserGaragePage({ params }: Props) {
         <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">Digital Garage</p>
           <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">{user.displayName}&apos;s Garage</h1>
-          <p className="mt-1 flex items-center gap-1 text-sm text-zinc-300">
-            <MapPin className="h-3.5 w-3.5" />
-            {user.location}
-          </p>
+          {view.canViewLocation && user.location ? (
+            <p className="mt-1 flex items-center gap-1 text-sm text-zinc-300">
+              <MapPin className="h-3.5 w-3.5" />
+              {user.location}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -52,22 +77,29 @@ export default async function UserGaragePage({ params }: Props) {
           </Link>
         </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {userVehicles.map((vehicle) => (
-          <VehicleCard key={vehicle.id} vehicle={vehicle} />
-        ))}
-      </div>
-
-      {allBuildLogs.length > 0 && (
-        <section className="mt-10">
-          <h2 className="mb-4 text-lg font-semibold text-white">Build Logs</h2>
-          <div className="space-y-3">
-            {allBuildLogs.map((log) => (
-              <BuildLogCard key={log.id} log={log} />
+        {userVehicles.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16 text-center text-zinc-500">
+            <Lock className="h-8 w-8 text-zinc-600" />
+            <p className="text-sm">No public vehicles yet.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {userVehicles.map((vehicle) => (
+              <VehicleCard key={vehicle.id} vehicle={vehicle} username={user.username} />
             ))}
           </div>
-        </section>
-      )}
+        )}
+
+        {allBuildLogs.length > 0 && (
+          <section className="mt-10">
+            <h2 className="mb-4 text-lg font-semibold text-white">Build Logs</h2>
+            <div className="space-y-3">
+              {allBuildLogs.map((log) => (
+                <BuildLogCard key={log.id} log={log} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

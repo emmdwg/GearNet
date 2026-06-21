@@ -10,12 +10,14 @@ import type { RootStackParamList } from "../../navigation/types";
 
 type Props = {
   comments: Comment[];
+  currentUserId?: string | null;
   onReply: (parentId: string, content: string) => Promise<void>;
   onLike: (commentId: string) => Promise<{ liked: boolean }>;
+  onDelete?: (commentId: string) => Promise<void>;
   onSignInRequired?: () => void;
 };
 
-export function CommentThread({ comments, onReply, onLike, onSignInRequired }: Props) {
+export function CommentThread({ comments, currentUserId, onReply, onLike, onDelete, onSignInRequired }: Props) {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -50,6 +52,8 @@ export function CommentThread({ comments, onReply, onLike, onSignInRequired }: P
           onSetReplyText={setReplyText}
           onSubmitReply={submitReply}
           onLike={onLike}
+          onDelete={onDelete}
+          currentUserId={currentUserId}
           onSignInRequired={onSignInRequired}
         />
       ))}
@@ -67,6 +71,8 @@ function CommentNode({
   onSetReplyText,
   onSubmitReply,
   onLike,
+  onDelete,
+  currentUserId,
   onSignInRequired,
 }: {
   item: Comment;
@@ -78,11 +84,17 @@ function CommentNode({
   onSetReplyText: (text: string) => void;
   onSubmitReply: () => void;
   onLike: (commentId: string) => Promise<{ liked: boolean }>;
+  onDelete?: (commentId: string) => Promise<void>;
+  currentUserId?: string | null;
   onSignInRequired?: () => void;
 }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [likes, setLikes] = useState(item.likes ?? 0);
   const [liked, setLiked] = useState(item.liked ?? false);
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = Boolean(
+    currentUserId && (item.userId === currentUserId || item.user.id === currentUserId) && onDelete
+  );
 
   async function handleLike() {
     if (onSignInRequired) {
@@ -95,6 +107,16 @@ function CommentNode({
       setLikes((n) => (result.liked ? n + 1 : Math.max(0, n - 1)));
     } catch {
       // ignore
+    }
+  }
+
+  async function handleDelete() {
+    if (!onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(item.id);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -118,6 +140,11 @@ function CommentNode({
         <Pressable style={styles.metaBtn} onPress={() => onSetReplyTo(replyTo === item.id ? null : item.id)}>
           <Text style={styles.metaText}>Reply</Text>
         </Pressable>
+        {canDelete ? (
+          <Pressable style={styles.metaBtn} onPress={handleDelete} disabled={deleting}>
+            <Text style={[styles.metaText, { color: colors.danger }]}>{deleting ? "..." : "Delete"}</Text>
+          </Pressable>
+        ) : null}
       </View>
       {replyTo === item.id ? (
         <View style={styles.replyInputRow}>
@@ -146,6 +173,8 @@ function CommentNode({
           onSetReplyText={onSetReplyText}
           onSubmitReply={onSubmitReply}
           onLike={onLike}
+          onDelete={onDelete}
+          currentUserId={currentUserId}
           onSignInRequired={onSignInRequired}
         />
       ))}

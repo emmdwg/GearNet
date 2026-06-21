@@ -8,6 +8,7 @@ import { ChatThreadScreen } from "../screens/ChatThreadScreen";
 import { ExchangeScreen } from "../screens/ExchangeScreen";
 import { ExploreScreen } from "../screens/ExploreScreen";
 import { FollowListScreen } from "../screens/FollowListScreen";
+import { ForgotPasswordScreen } from "../screens/ForgotPasswordScreen";
 import { GarageScreen } from "../screens/GarageScreen";
 import { ListingDetailScreen } from "../screens/ListingDetailScreen";
 import { TagScreen } from "../screens/TagScreen";
@@ -91,6 +92,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="VerifyEmail"
         component={VerifyEmailScreen}
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen name="Profile" component={ProfileScreen} />

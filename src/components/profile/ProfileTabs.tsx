@@ -20,9 +20,10 @@ type Props = {
   posts: GridPost[];
   vehicles: Vehicle[];
   username: string;
+  showGarage?: boolean;
 };
 
-export function ProfileTabs({ posts, vehicles, username }: Props) {
+export function ProfileTabs({ posts, vehicles, username, showGarage = true }: Props) {
   const [tab, setTab] = useState<"posts" | "garage">("posts");
 
   return (
@@ -31,9 +32,11 @@ export function ProfileTabs({ posts, vehicles, username }: Props) {
         <TabButton active={tab === "posts"} onClick={() => setTab("posts")} icon={<Grid2x2 className="h-4 w-4" />}>
           Posts
         </TabButton>
-        <TabButton active={tab === "garage"} onClick={() => setTab("garage")} icon={<Warehouse className="h-4 w-4" />}>
-          Garage
-        </TabButton>
+        {showGarage ? (
+          <TabButton active={tab === "garage"} onClick={() => setTab("garage")} icon={<Warehouse className="h-4 w-4" />}>
+            Garage
+          </TabButton>
+        ) : null}
       </div>
 
       {tab === "posts" ? (

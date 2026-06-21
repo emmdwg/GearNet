@@ -1,5 +1,7 @@
 import { FollowList } from "@/components/profile/FollowList";
+import { PrivateProfileBanner } from "@/components/profile/PrivateProfileBanner";
 import { getFollowers, getFollowingIds, getUserByUsername } from "@/lib/db";
+import { getProfileViewContext } from "@/lib/privacy";
 import { getSession } from "@/lib/session";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -13,8 +15,10 @@ export default async function FollowersPage({ params }: Props) {
   if (!user) notFound();
 
   const session = await getSession();
+  const view = await getProfileViewContext(user.id, session?.user?.id);
+
   const [followers, viewerFollowingIds] = await Promise.all([
-    getFollowers(user.id),
+    view.canViewPosts ? getFollowers(user.id) : Promise.resolve([]),
     session?.user?.id ? getFollowingIds(session.user.id) : Promise.resolve<string[]>([]),
   ]);
 
@@ -34,11 +38,15 @@ export default async function FollowersPage({ params }: Props) {
         </div>
       </header>
 
-      <FollowList
-        users={followers}
-        viewerFollowingIds={viewerFollowingIds}
-        emptyLabel={`${user.displayName} has no followers yet.`}
-      />
+      {view.canViewPosts ? (
+        <FollowList
+          users={followers}
+          viewerFollowingIds={viewerFollowingIds}
+          emptyLabel={`${user.displayName} has no followers yet.`}
+        />
+      ) : (
+        <PrivateProfileBanner isFollowing={view.isFollowing} isPrivate={view.isPrivate} />
+      )}
     </div>
   );
 }

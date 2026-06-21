@@ -26,7 +26,7 @@ import { LoadingState } from "../components/ui/LoadingState";
 import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { colors, radii, spacing } from "../lib/theme";
-import type { FollowStats, Post, User, Vehicle } from "../lib/types";
+import type { FollowStats, Post, ProfileView, User, Vehicle } from "../lib/types";
 import type { RootStackParamList } from "../navigation/types";
 
 export function ProfileScreen() {
@@ -40,6 +40,15 @@ export function ProfileScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [followStats, setFollowStats] = useState<FollowStats>({ followers: 0, following: 0, isFollowing: false });
+  const [view, setView] = useState<ProfileView>({
+    access: "full",
+    canViewPosts: true,
+    canViewGarage: true,
+    canViewLocation: true,
+    canMessage: false,
+    isFollowing: false,
+    isPrivate: false,
+  });
   const [tab, setTab] = useState<"posts" | "garage">("posts");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,6 +65,17 @@ export function ProfileScreen() {
       setVehicles(data.vehicles);
       setPosts(data.posts);
       setFollowStats(data.followStats ?? { followers: 0, following: 0, isFollowing: false });
+      setView(
+        data.view ?? {
+          access: "full",
+          canViewPosts: true,
+          canViewGarage: true,
+          canViewLocation: true,
+          canMessage: false,
+          isFollowing: data.followStats?.isFollowing ?? false,
+          isPrivate: false,
+        }
+      );
       setError("");
     } catch {
       setError("Could not load profile");
@@ -208,7 +228,7 @@ export function ProfileScreen() {
                 </Pressable>
               </>
             )}
-            {!authLoading ? (
+            {!authLoading && (isOwnProfile || view.canMessage) ? (
               <Pressable style={styles.pillBtn} onPress={handleMessage}>
                 <Ionicons name="chatbubble-outline" size={15} color={colors.textMuted} />
                 <Text style={styles.pillText}>{isOwnProfile ? "Messages" : "Message"}</Text>
@@ -264,16 +284,34 @@ export function ProfileScreen() {
         ) : null}
       </View>
 
+      {view.access === "limited" ? (
+        <View style={styles.privateBanner}>
+          <Ionicons name="lock-closed-outline" size={18} color={colors.textDim} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.privateTitle}>{view.isPrivate ? "This account is private" : "Follow to see their builds"}</Text>
+            <Text style={styles.privateBody}>
+              {view.isFollowing
+                ? "Refresh if you just followed them."
+                : "Follow this builder to see their posts and garage."}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {view.canViewPosts || view.canViewGarage ? (
+      <>
       {/* Tabs */}
       <View style={styles.tabs}>
         <Pressable style={[styles.tab, tab === "posts" && styles.tabActive]} onPress={() => setTab("posts")}>
           <Ionicons name="grid-outline" size={16} color={tab === "posts" ? colors.text : colors.textDim} />
           <Text style={[styles.tabText, tab === "posts" && styles.tabTextActive]}>Posts</Text>
         </Pressable>
+        {view.canViewGarage ? (
         <Pressable style={[styles.tab, tab === "garage" && styles.tabActive]} onPress={() => setTab("garage")}>
           <Ionicons name="car-outline" size={16} color={tab === "garage" ? colors.text : colors.textDim} />
           <Text style={[styles.tabText, tab === "garage" && styles.tabTextActive]}>Garage</Text>
         </Pressable>
+        ) : null}
       </View>
 
       {tab === "posts" ? (
@@ -316,6 +354,8 @@ export function ProfileScreen() {
       ) : (
         <Text style={styles.empty}>No vehicles in the garage yet.</Text>
       )}
+      </>
+      ) : null}
     </ScrollView>
     {!isOwnProfile && profile ? (
       <UserSafetySheet
@@ -437,4 +477,17 @@ const styles = StyleSheet.create({
   gridStat: { flexDirection: "row", alignItems: "center", gap: 3 },
   gridStatText: { color: "#fff", fontSize: 11, fontWeight: "600" },
   empty: { textAlign: "center", color: colors.textDim, fontSize: 14, paddingVertical: 40 },
+  privateBanner: {
+    flexDirection: "row",
+    gap: 12,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardMuted,
+  },
+  privateTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
+  privateBody: { fontSize: 13, color: colors.textDim, marginTop: 4, lineHeight: 18 },
 });

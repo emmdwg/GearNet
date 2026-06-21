@@ -15,6 +15,7 @@ export function MessageUserButton({ userId, username, className, children }: Pro
   const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleClick() {
     if (!user) {
@@ -24,6 +25,7 @@ export function MessageUserButton({ userId, username, className, children }: Pro
     if (user.id === userId) return;
 
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/conversations", {
         method: "POST",
@@ -33,16 +35,19 @@ export function MessageUserButton({ userId, username, className, children }: Pro
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to start conversation");
       router.push(`/chat?conversation=${data.id}`);
-    } catch {
-      router.push("/chat");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start conversation");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <button type="button" onClick={handleClick} disabled={loading} className={className}>
-      {children ?? (loading ? "Opening..." : "Message")}
-    </button>
+    <>
+      <button type="button" onClick={handleClick} disabled={loading} className={className}>
+        {children ?? (loading ? "Opening..." : "Message")}
+      </button>
+      {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+    </>
   );
 }

@@ -17,6 +17,7 @@ import { CoverPicker } from "../components/ui/CoverPicker";
 import { LoadingState } from "../components/ui/LoadingState";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 import { colors, radii, spacing } from "../lib/theme";
 import type { UserProfile, UserSettings } from "../lib/types";
 import type { RootStackParamList } from "../navigation/types";
@@ -89,6 +90,12 @@ export function SettingsScreen() {
   const [usernameError, setUsernameError] = useState("");
   const [usernameHint, setUsernameHint] = useState("");
   const [pushStatus, setPushStatus] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     const data = await api.getSettings();
@@ -167,6 +174,42 @@ export function SettingsScreen() {
       setSaved("Save failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changePassword() {
+    setPasswordError("");
+    setPasswordMessage("");
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordMessage("Password updated.");
+  }
+
+  async function deleteAccount() {
+    if (!profile || deleteConfirm !== profile.username) return;
+    setDeleting(true);
+    setPasswordError("");
+    try {
+      await api.deleteAccount();
+      await signOut();
+      navigation.navigate("MainTabs");
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Could not delete account");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -304,12 +347,52 @@ export function SettingsScreen() {
         </Pressable>
         {saved ? <Text style={styles.saved}>{saved}</Text> : null}
 
+        <SectionTitle>Account security</SectionTitle>
+        <TextInput
+          value={newPassword}
+          onChangeText={setNewPassword}
+          placeholder="New password"
+          placeholderTextColor={colors.textFaint}
+          secureTextEntry
+          style={styles.input}
+        />
+        <TextInput
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Confirm new password"
+          placeholderTextColor={colors.textFaint}
+          secureTextEntry
+          style={styles.input}
+        />
+        <Pressable style={styles.linkBtn} onPress={changePassword}>
+          <Text style={styles.linkBtnText}>Update password</Text>
+        </Pressable>
+        {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+        {passwordMessage ? <Text style={styles.saved}>{passwordMessage}</Text> : null}
+
         <SectionTitle>Quick links</SectionTitle>
         <Pressable
           style={styles.linkBtn}
           onPress={() => navigation.navigate("Profile", { username: profile.username })}
         >
           <Text style={styles.linkBtnText}>View public profile</Text>
+        </Pressable>
+
+        <SectionTitle>Danger zone</SectionTitle>
+        <Text style={styles.dangerHint}>Permanently delete your account and all data.</Text>
+        <TextInput
+          value={deleteConfirm}
+          onChangeText={setDeleteConfirm}
+          placeholder={`Type ${profile.username} to confirm`}
+          placeholderTextColor={colors.textFaint}
+          style={styles.input}
+        />
+        <Pressable
+          style={[styles.dangerBtn, (deleting || deleteConfirm !== profile.username) && { opacity: 0.5 }]}
+          onPress={deleteAccount}
+          disabled={deleting || deleteConfirm !== profile.username}
+        >
+          <Text style={styles.dangerBtnText}>{deleting ? "Deleting..." : "Delete account"}</Text>
         </Pressable>
 
         <SectionTitle>Account actions</SectionTitle>
@@ -461,4 +544,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   signOutText: { color: colors.textMuted, fontSize: 14 },
+  errorText: { color: colors.danger, fontSize: 12 },
+  dangerHint: { fontSize: 13, color: colors.textDim, marginBottom: 4 },
+  dangerBtn: {
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.4)",
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  dangerBtnText: { color: colors.danger, fontWeight: "600" },
 });

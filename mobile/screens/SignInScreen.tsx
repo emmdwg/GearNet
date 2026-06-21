@@ -75,6 +75,10 @@ export function SignInScreen() {
             </Pressable>
           ) : null}
 
+          <Pressable onPress={() => navigation.navigate("ForgotPassword")} style={{ marginBottom: spacing.sm }}>
+            <Text style={styles.link}>Forgot password?</Text>
+          </Pressable>
+
           <Text style={styles.label}>Email</Text>
           <TextInput
             value={email}

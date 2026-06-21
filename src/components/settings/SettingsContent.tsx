@@ -4,6 +4,7 @@ import { AvatarPicker } from "@/components/ui/AvatarPicker";
 import { CoverPicker } from "@/components/ui/CoverPicker";
 import { PushRegistration } from "@/components/settings/PushRegistration";
 import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -64,6 +65,12 @@ export function SettingsContent() {
   const [usernameError, setUsernameError] = useState("");
   const [usernameHint, setUsernameHint] = useState("");
   const [loading, setLoading] = useState(true);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -136,6 +143,48 @@ export function SettingsContent() {
       await refresh();
       setSaved("Settings saved");
       setTimeout(() => setSaved(""), 2000);
+    }
+  }
+
+  async function changePassword() {
+    setPasswordError("");
+    setPasswordMessage("");
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordMessage("Password updated.");
+  }
+
+  async function deleteAccount() {
+    if (deleteConfirm !== profile?.username) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Could not delete account");
+      }
+      await signOut();
+      router.push("/explore");
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Could not delete account");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -257,6 +306,34 @@ export function SettingsContent() {
       {saved && <p className="text-center text-sm text-emerald-400">{saved}</p>}
 
       <section className="section-card space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Account security</h2>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="New password"
+          className="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-2.5 text-sm text-white focus:border-amber-500/50 focus:outline-none"
+        />
+        <input
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Confirm new password"
+          className="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-2.5 text-sm text-white focus:border-amber-500/50 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={changePassword}
+          disabled={!newPassword || !confirmPassword}
+          className="w-full rounded-lg border border-zinc-700 py-2.5 text-sm text-zinc-300 hover:border-amber-500/40 disabled:opacity-40"
+        >
+          Update password
+        </button>
+        {passwordError ? <p className="text-xs text-red-400">{passwordError}</p> : null}
+        {passwordMessage ? <p className="text-xs text-emerald-400">{passwordMessage}</p> : null}
+      </section>
+
+      <section className="section-card space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Quick links</h2>
         <Link
           href={`/profile/${profile.username}`}
@@ -266,8 +343,29 @@ export function SettingsContent() {
         </Link>
       </section>
 
+      <section className="section-card space-y-3 border-red-500/20">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-red-400">Danger zone</h2>
+        <p className="text-sm text-zinc-500">
+          Permanently delete your account, garage, posts, and messages. This cannot be undone.
+        </p>
+        <input
+          value={deleteConfirm}
+          onChange={(e) => setDeleteConfirm(e.target.value)}
+          placeholder={`Type ${profile.username} to confirm`}
+          className="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-2.5 text-sm text-white focus:border-red-500/50 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={deleteAccount}
+          disabled={deleting || deleteConfirm !== profile.username}
+          className="w-full rounded-lg border border-red-500/40 py-2.5 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+        >
+          {deleting ? "Deleting..." : "Delete account"}
+        </button>
+      </section>
+
       <section className="section-card space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Account</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Session</h2>
         <button
           type="button"
           onClick={async () => {

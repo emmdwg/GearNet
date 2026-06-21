@@ -1,5 +1,6 @@
 import { getConversations } from "@/lib/db";
 import { isBlocked } from "@/lib/blocking";
+import { canSendMessage } from "@/lib/privacy";
 import { requireAuth } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
@@ -23,6 +24,9 @@ export async function POST(request: Request) {
     }
     if (await isBlocked(session!.user.id, participantId)) {
       return NextResponse.json({ error: "Cannot message this user" }, { status: 403 });
+    }
+    if (!(await canSendMessage(participantId, session!.user.id))) {
+      return NextResponse.json({ error: "This user is not accepting messages" }, { status: 403 });
     }
 
     const existing = await prisma.conversation.findFirst({

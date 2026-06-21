@@ -1,7 +1,8 @@
 "use client";
 
+import { CommentThread, type CommentItem } from "@/components/social/CommentThread";
 import { Avatar } from "@/components/ui/Avatar";
-import { formatRelativeDate } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 import { Heart, MessageSquare, Send, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,15 +16,11 @@ type PitDetail = {
   comments: number;
   liked: boolean;
   user: { id: string; username: string; displayName: string; avatar: string };
-  commentList: {
-    id: string;
-    content: string;
-    createdAt: string;
-    user: { username: string; displayName: string; avatar: string };
-  }[];
+  commentList: CommentItem[];
 };
 
 export function PitUpdateViewer({ updateId, onClose }: { updateId: string; onClose: () => void }) {
+  const { user } = useAuth();
   const [data, setData] = useState<PitDetail | null>(null);
   const [likes, setLikes] = useState(0);
   const [liked, setLiked] = useState(false);
@@ -61,11 +58,46 @@ export function PitUpdateViewer({ updateId, onClose }: { updateId: string; onClo
       body: JSON.stringify({ targetType: "pit_update", targetId: updateId, content: comment.trim() }),
     });
     if (!res.ok) return;
-    const created = await res.json();
-    setData((prev) =>
-      prev ? { ...prev, commentList: [...prev.commentList, created], comments: prev.comments + 1 } : prev
-    );
+    const listRes = await fetch(`/api/comments?targetType=pit_update&targetId=${updateId}`);
+    if (listRes.ok) {
+      const list = await listRes.json();
+      setData((prev) => (prev ? { ...prev, commentList: list, comments: prev.comments + 1 } : prev));
+    }
     setComment("");
+  }
+
+  async function submitReply(parentId: string, content: string) {
+    const res = await fetch("/api/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetType: "pit_update", targetId: updateId, content, parentId }),
+    });
+    if (!res.ok) return;
+    const listRes = await fetch(`/api/comments?targetType=pit_update&targetId=${updateId}`);
+    if (listRes.ok) {
+      const list = await listRes.json();
+      setData((prev) => (prev ? { ...prev, commentList: list, comments: prev.comments + 1 } : prev));
+    }
+  }
+
+  async function likeComment(commentId: string) {
+    const res = await fetch("/api/likes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetType: "comment", targetId: commentId }),
+    });
+    if (!res.ok) return { liked: false };
+    return res.json();
+  }
+
+  async function deleteComment(commentId: string) {
+    const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
+    if (!res.ok) return;
+    const listRes = await fetch(`/api/comments?targetType=pit_update&targetId=${updateId}`);
+    if (listRes.ok) {
+      const list = await listRes.json();
+      setData((prev) => (prev ? { ...prev, commentList: list } : prev));
+    }
   }
 
   if (loading || !data) {
@@ -98,14 +130,14 @@ export function PitUpdateViewer({ updateId, onClose }: { updateId: string; onClo
           <div className="border-b border-zinc-800 px-4 py-3">
             <p className="text-sm text-zinc-200">{data.caption}</p>
           </div>
-          <div className="flex-1 space-y-3 overflow-y-auto p-4">
-            {data.commentList.map((item) => (
-              <div key={item.id} className="text-sm">
-                <span className="font-medium text-white">{item.user.displayName}</span>{" "}
-                <span className="text-zinc-300">{item.content}</span>
-                <p className="text-[10px] text-zinc-600">{formatRelativeDate(item.createdAt)}</p>
-              </div>
-            ))}
+          <div className="flex-1 overflow-y-auto p-4">
+            <CommentThread
+              comments={data.commentList}
+              currentUserId={user?.id}
+              onReply={submitReply}
+              onLike={likeComment}
+              onDelete={deleteComment}
+            />
           </div>
           <div className="border-t border-zinc-800 p-4">
             <div className="mb-3 flex items-center gap-4 text-sm text-zinc-400">

@@ -81,7 +81,12 @@ export default function SignInForm() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-zinc-400">Password</label>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-sm text-zinc-400">Password</label>
+              <Link href="/auth/forgot-password" className="text-xs text-amber-400 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               value={password}

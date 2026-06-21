@@ -98,6 +98,16 @@ export type FollowStats = {
   isFollowing: boolean;
 };
 
+export type ProfileView = {
+  access: "owner" | "full" | "limited";
+  canViewPosts: boolean;
+  canViewGarage: boolean;
+  canViewLocation: boolean;
+  canMessage: boolean;
+  isFollowing: boolean;
+  isPrivate: boolean;
+};
+
 export type Notification = {
   id: string;
   type: string;

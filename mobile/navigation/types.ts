@@ -6,6 +6,7 @@ export type RootStackParamList = {
   SignIn: undefined;
   SignUp: undefined;
   VerifyEmail: { email: string };
+  ForgotPassword: undefined;
   Profile: { username: string };
   ChatThread: {
     conversationId: string;

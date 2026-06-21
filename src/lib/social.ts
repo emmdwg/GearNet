@@ -1,4 +1,5 @@
 import { jsonArray, parseJsonArray } from "@/lib/api-helpers";
+import { sendNotificationEmail } from "@/lib/email";
 import { sendPushToUser } from "@/lib/push";
 import { isBlocked } from "@/lib/blocking";
 import { prisma } from "@/lib/prisma";
@@ -67,13 +68,50 @@ export async function createNotification(data: {
 
   await prisma.notification.create({ data });
 
+  const url = await buildNotificationUrl(data);
+
   if (settings.pushNotifications) {
     await sendPushToUser(data.userId, {
       title: data.title,
       body: data.body,
-      url: data.targetType && data.targetId ? `/activity` : undefined,
+      url,
     });
   }
+
+  if (settings.emailNotifications) {
+    const recipient = await prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { email: true },
+    });
+    if (recipient?.email) {
+      await sendNotificationEmail({
+        to: recipient.email,
+        subject: data.title,
+        title: data.title,
+        body: data.body,
+        url,
+      });
+    }
+  }
+}
+
+async function buildNotificationUrl(data: {
+  actorId: string;
+  type: string;
+  targetType?: string;
+  targetId?: string;
+}) {
+  if (data.type === "message") return "/chat";
+  if (data.targetType === "post" && data.targetId) return `/explore?post=${data.targetId}`;
+  if (data.targetType === "pit_update" && data.targetId) return `/explore?pit=${data.targetId}`;
+  if (data.type === "follow") {
+    const actor = await prisma.user.findUnique({
+      where: { id: data.actorId },
+      select: { username: true },
+    });
+    if (actor) return `/profile/${actor.username}`;
+  }
+  return "/activity";
 }
 
 export async function toggleLike(userId: string, targetType: LikeTargetType, targetId: string) {
@@ -278,6 +316,35 @@ export async function getComments(targetType: SocialTargetType, targetId: string
   }
 
   return roots;
+}
+
+async function collectCommentTreeIds(commentId: string): Promise<string[]> {
+  const replies = await prisma.comment.findMany({
+    where: { parentId: commentId },
+    select: { id: true },
+  });
+  const nested = await Promise.all(replies.map((reply) => collectCommentTreeIds(reply.id)));
+  return [commentId, ...nested.flat()];
+}
+
+export async function deleteComment(userId: string, commentId: string) {
+  const comment = await prisma.comment.findUnique({ where: { id: commentId } });
+  if (!comment) throw new Error("Not found");
+  if (comment.userId !== userId) throw new Error("Forbidden");
+
+  const treeIds = await collectCommentTreeIds(commentId);
+  const targetType = comment.targetType as SocialTargetType;
+  if (targetType !== "post" && targetType !== "pit_update") {
+    throw new Error("Invalid comment target");
+  }
+
+  await prisma.$transaction([
+    prisma.like.deleteMany({ where: { targetType: "comment", targetId: { in: treeIds } } }),
+    prisma.notification.deleteMany({ where: { targetType: "comment", targetId: { in: treeIds } } }),
+    prisma.comment.delete({ where: { id: commentId } }),
+  ]);
+
+  await incrementCommentCount(targetType, comment.targetId, -treeIds.length);
 }
 
 export async function getUserLikeState(userId: string | undefined, targetType: SocialTargetType, targetId: string) {

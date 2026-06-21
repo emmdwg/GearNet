@@ -6,6 +6,7 @@ import { ImageCarousel } from "@/components/ui/ImageCarousel";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { BookmarkButton } from "@/components/ui/BookmarkButton";
+import { useAuth } from "@/lib/auth-context";
 import { formatRelativeDate } from "@/lib/utils";
 import { Heart, MessageSquare, Send, X } from "lucide-react";
 import Link from "next/link";
@@ -27,6 +28,7 @@ type PostDetail = {
 };
 
 export function PostViewer({ postId, onClose }: { postId: string; onClose: () => void }) {
+  const { user } = useAuth();
   const [data, setData] = useState<PostDetail | null>(null);
   const [likes, setLikes] = useState(0);
   const [liked, setLiked] = useState(false);
@@ -116,6 +118,16 @@ export function PostViewer({ postId, onClose }: { postId: string; onClose: () =>
     return res.json();
   }
 
+  async function deleteComment(commentId: string) {
+    const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
+    if (!res.ok) return;
+    const listRes = await fetch(`/api/comments?targetType=post&targetId=${postId}`);
+    if (listRes.ok) {
+      const list = await listRes.json();
+      setData((prev) => (prev ? { ...prev, commentList: list } : prev));
+    }
+  }
+
   if (loading || !data) {
     return (
       <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/90">
@@ -171,8 +183,10 @@ export function PostViewer({ postId, onClose }: { postId: string; onClose: () =>
           <div className="flex-1 overflow-y-auto p-4">
             <CommentThread
               comments={data.commentList}
+              currentUserId={user?.id}
               onReply={submitReply}
               onLike={likeComment}
+              onDelete={deleteComment}
             />
           </div>
 

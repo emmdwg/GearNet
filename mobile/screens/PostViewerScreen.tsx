@@ -140,6 +140,12 @@ export function PostViewerScreen() {
     return api.toggleLike("comment", commentId);
   }
 
+  async function deleteComment(commentId: string) {
+    await api.deleteComment(commentId);
+    const commentList = await api.getComments("post", postId);
+    setData((prev) => (prev ? { ...prev, commentList } : prev));
+  }
+
   async function handleDelete() {
     try {
       await api.deletePost(postId);
@@ -276,8 +282,10 @@ export function PostViewerScreen() {
       <ScrollView style={styles.comments} contentContainerStyle={styles.commentsContent}>
         <CommentThread
           comments={commentList}
+          currentUserId={user?.id}
           onReply={submitReply}
           onLike={likeComment}
+          onDelete={user ? deleteComment : undefined}
           onSignInRequired={!user ? () => navigation.navigate("SignIn") : undefined}
         />
       </ScrollView>

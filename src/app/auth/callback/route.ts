@@ -29,5 +29,9 @@ export async function GET(request: Request) {
     });
   }
 
+  if (next.startsWith("/auth/reset-password")) {
+    return NextResponse.redirect(`${origin}${next}`);
+  }
+
   return NextResponse.redirect(`${origin}/auth/signin?verified=1`);
 }

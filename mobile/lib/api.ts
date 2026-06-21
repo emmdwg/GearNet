@@ -12,6 +12,7 @@ import type {
   PitUpdateDetail,
   Post,
   PostDetail,
+  ProfileView,
   LikeTargetType,
   ServiceManual,
   SocialTargetType,
@@ -122,7 +123,7 @@ export const api = {
     fetchApi<{ rsvped: boolean }>(`/api/events/${eventId}/rsvp`, { method: "POST" }),
 
   getUser: (username: string) =>
-    fetchApi<{ user: User; vehicles: Vehicle[]; posts: Post[]; followStats: FollowStats }>(
+    fetchApi<{ user: User; vehicles: Vehicle[]; posts: Post[]; followStats: FollowStats; view: ProfileView }>(
       `/api/users/${username}`
     ),
 
@@ -204,6 +205,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ targetType, targetId, content, parentId }),
     }),
+
+  deleteComment: (id: string) =>
+    fetchApi<{ ok: boolean }>(`/api/comments/${id}`, { method: "DELETE" }),
+
+  deleteAccount: () => fetchApi<{ ok: boolean }>("/api/account", { method: "DELETE" }),
 
   getNotifications: () =>
     fetchApi<{ items: Notification[]; unreadCount: number }>("/api/notifications"),

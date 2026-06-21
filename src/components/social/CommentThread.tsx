@@ -1,12 +1,13 @@
 "use client";
 
 import { formatRelativeDate } from "@/lib/utils";
-import { Heart, MessageCircle } from "lucide-react";
+import { Heart, MessageCircle, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 export type CommentItem = {
   id: string;
+  userId?: string;
   parentId?: string | null;
   content: string;
   likes: number;
@@ -18,12 +19,14 @@ export type CommentItem = {
 
 type Props = {
   comments: CommentItem[];
+  currentUserId?: string | null;
   onReply: (parentId: string, content: string) => Promise<void>;
   onLike: (commentId: string) => Promise<{ liked: boolean }>;
+  onDelete?: (commentId: string) => Promise<void>;
   onSignInRequired?: () => void;
 };
 
-export function CommentThread({ comments, onReply, onLike, onSignInRequired }: Props) {
+export function CommentThread({ comments, currentUserId, onReply, onLike, onDelete, onSignInRequired }: Props) {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -58,6 +61,8 @@ export function CommentThread({ comments, onReply, onLike, onSignInRequired }: P
           onSetReplyText={setReplyText}
           onSubmitReply={submitReply}
           onLike={onLike}
+          onDelete={onDelete}
+          currentUserId={currentUserId}
           onSignInRequired={onSignInRequired}
         />
       ))}
@@ -75,6 +80,8 @@ function CommentNode({
   onSetReplyText,
   onSubmitReply,
   onLike,
+  onDelete,
+  currentUserId,
   onSignInRequired,
 }: {
   item: CommentItem;
@@ -86,10 +93,16 @@ function CommentNode({
   onSetReplyText: (text: string) => void;
   onSubmitReply: () => void;
   onLike: (commentId: string) => Promise<{ liked: boolean }>;
+  onDelete?: (commentId: string) => Promise<void>;
+  currentUserId?: string | null;
   onSignInRequired?: () => void;
 }) {
   const [likes, setLikes] = useState(item.likes);
   const [liked, setLiked] = useState(item.liked);
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = Boolean(
+    currentUserId && (item.userId === currentUserId || item.user.id === currentUserId) && onDelete
+  );
 
   async function handleLike() {
     try {
@@ -98,6 +111,16 @@ function CommentNode({
       setLikes((n) => (result.liked ? n + 1 : Math.max(0, n - 1)));
     } catch {
       // ignore
+    }
+  }
+
+  async function handleDelete() {
+    if (!onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(item.id);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -126,6 +149,17 @@ function CommentNode({
             <MessageCircle className="h-3 w-3" />
             Reply
           </button>
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1 transition-colors hover:text-red-400"
+            >
+              <Trash2 className="h-3 w-3" />
+              {deleting ? "..." : "Delete"}
+            </button>
+          ) : null}
         </div>
         {replyTo === item.id && (
           <div className="mt-2 flex gap-2">
@@ -159,6 +193,8 @@ function CommentNode({
             onSetReplyText={onSetReplyText}
             onSubmitReply={onSubmitReply}
             onLike={onLike}
+            onDelete={onDelete}
+            currentUserId={currentUserId}
             onSignInRequired={onSignInRequired}
           />
         </div>
