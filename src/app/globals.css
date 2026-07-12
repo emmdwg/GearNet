@@ -1,11 +1,31 @@
 @import "tailwindcss";
 
+/*
+  GearNet brand — deep navy ink + electric sky (dashboard / OEM energy).
+  Amber Tailwind tokens remapped so existing amber-* classes pick up the accent.
+*/
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --accent: #f59e0b;
-  --card: #18181b;
-  --border: #27272a;
+  --background: #070b14;
+  --foreground: #eef3fb;
+  --accent: #4cc9f0;
+  --accent-strong: #22b8e6;
+  --accent-soft: rgba(76, 201, 240, 0.14);
+  --card: #101826;
+  --border: #1e2a3d;
+}
+
+html.light {
+  --background: #f2f5fa;
+  --foreground: #0b1220;
+  --accent: #0284c7;
+  --accent-strong: #0369a1;
+  --accent-soft: rgba(2, 132, 199, 0.1);
+  --card: #ffffff;
+  --border: #d5deeb;
+}
+
+html.light body {
+  background-image: none;
 }
 
 @theme inline {
@@ -16,6 +36,32 @@
   --color-border: var(--border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Remap amber scale → sky blue */
+  --color-amber-50: #f0f9ff;
+  --color-amber-100: #e0f2fe;
+  --color-amber-200: #bae6fd;
+  --color-amber-300: #7dd3fc;
+  --color-amber-400: #4cc9f0;
+  --color-amber-500: #22b8e6;
+  --color-amber-600: #0ea5e9;
+  --color-amber-700: #0284c7;
+  --color-amber-800: #0369a1;
+  --color-amber-900: #075985;
+  --color-amber-950: #0c4a6e;
+
+  /* Cool navy zincs */
+  --color-zinc-950: #070b14;
+  --color-zinc-900: #101826;
+  --color-zinc-800: #1a2436;
+  --color-zinc-700: #2a364c;
+  --color-zinc-600: #3d4d66;
+  --color-zinc-500: #6b7c96;
+  --color-zinc-400: #8fa0b8;
+  --color-zinc-300: #b6c2d4;
+  --color-zinc-200: #d5deeb;
+  --color-zinc-100: #e8edf5;
+  --color-zinc-50: #f2f5fa;
 }
 
 body {
@@ -23,19 +69,19 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 158, 11, 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(245, 158, 11, 0.04), transparent);
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(76, 201, 240, 0.09), transparent),
+    radial-gradient(ellipse 50% 35% at 100% 0%, rgba(99, 102, 241, 0.04), transparent);
 }
 
 .glass-card {
-  border: 1px solid rgba(63, 63, 70, 0.8);
-  background: rgba(24, 24, 27, 0.72);
+  border: 1px solid rgba(30, 42, 61, 0.95);
+  background: rgba(16, 24, 38, 0.8);
   backdrop-filter: blur(12px);
 }
 
 .section-card {
-  border: 1px solid rgb(39 39 42);
-  background: rgba(24, 24, 27, 0.5);
+  border: 1px solid rgb(30 42 61);
+  background: rgba(16, 24, 38, 0.55);
   border-radius: 1rem;
   padding: 1.25rem;
 }
@@ -70,4 +116,14 @@ body {
 
 .animate-like-burst {
   animation: like-burst 0.7s ease-out forwards;
+}
+
+@keyframes convoyPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(76, 201, 240, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(76, 201, 240, 0.12);
+  }
 }

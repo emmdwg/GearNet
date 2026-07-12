@@ -1,18 +1,19 @@
 import { DefaultTheme } from "@react-navigation/native";
 
+/** Deep navy ink + electric sky — shared with web (globals.css). */
 export const colors = {
-  background: "#09090b",
-  card: "#18181b",
-  cardMuted: "rgba(24, 24, 27, 0.5)",
-  border: "#27272a",
-  borderLight: "#3f3f46",
-  text: "#fafafa",
-  textMuted: "#a1a1aa",
-  textDim: "#71717a",
-  textFaint: "#52525b",
-  accent: "#f59e0b",
-  accentDark: "#d97706",
-  accentText: "#09090b",
+  background: "#070b14",
+  card: "#101826",
+  cardMuted: "rgba(16, 24, 38, 0.55)",
+  border: "#1e2a3d",
+  borderLight: "#2a364c",
+  text: "#eef3fb",
+  textMuted: "#8fa0b8",
+  textDim: "#6b7c96",
+  textFaint: "#3d4d66",
+  accent: "#4cc9f0",
+  accentDark: "#22b8e6",
+  accentText: "#070b14",
   danger: "#f87171",
   success: "#4ade80",
 };

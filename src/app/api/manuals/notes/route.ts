@@ -1,7 +1,10 @@
 import { requireAuth } from "@/lib/api-helpers";
-import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+/**
+ * Community tips — temporarily schema-safe stubs until ManualGuideNote
+ * is migrated on production. Manual catalog search/browse is unaffected.
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const make = searchParams.get("make")?.trim();
@@ -11,40 +14,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "make and model required" }, { status: 400 });
   }
 
-  try {
-    const notes = await prisma.manualGuideNote.findMany({
-      where: {
-        vehicleMake: { equals: make, mode: "insensitive" },
-        vehicleModel: { equals: model, mode: "insensitive" },
-      },
-      include: {
-        user: { select: { username: true, displayName: true, avatar: true } },
-      },
-      orderBy: [{ upvotes: "desc" }, { createdAt: "desc" }],
-      take: 50,
-    });
-
-    return NextResponse.json({
-      notes: notes.map((n) => ({
-        id: n.id,
-        vehicleMake: n.vehicleMake,
-        vehicleModel: n.vehicleModel,
-        yearRange: n.yearRange,
-        section: n.section,
-        tip: n.tip,
-        upvotes: n.upvotes,
-        createdAt: n.createdAt.toISOString(),
-        user: n.user,
-      })),
-    });
-  } catch (err) {
-    console.error("GET /api/manuals/notes failed:", err);
-    return NextResponse.json({ error: "Failed to load notes" }, { status: 500 });
-  }
+  return NextResponse.json({ notes: [] });
 }
 
 export async function POST(request: Request) {
-  const { session, error } = await requireAuth();
+  const { error } = await requireAuth();
   if (error) return error;
 
   try {
@@ -55,39 +29,17 @@ export async function POST(request: Request) {
     const tip = body.tip?.trim();
 
     if (!vehicleMake || !vehicleModel || !section || !tip) {
-      return NextResponse.json({ error: "vehicleMake, vehicleModel, section, and tip required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "vehicleMake, vehicleModel, section, and tip required" },
+        { status: 400 },
+      );
     }
 
-    const note = await prisma.manualGuideNote.create({
-      data: {
-        userId: session!.user.id,
-        vehicleMake,
-        vehicleModel,
-        yearRange: body.yearRange?.trim() || null,
-        section,
-        tip,
-      },
-      include: {
-        user: { select: { username: true, displayName: true, avatar: true } },
-      },
-    });
-
     return NextResponse.json(
-      {
-        id: note.id,
-        vehicleMake: note.vehicleMake,
-        vehicleModel: note.vehicleModel,
-        yearRange: note.yearRange,
-        section: note.section,
-        tip: note.tip,
-        upvotes: note.upvotes,
-        createdAt: note.createdAt.toISOString(),
-        user: note.user,
-      },
-      { status: 201 },
+      { error: "Community tips are temporarily unavailable while we finish a database upgrade." },
+      { status: 503 },
     );
-  } catch (err) {
-    console.error("POST /api/manuals/notes failed:", err);
+  } catch {
     return NextResponse.json({ error: "Failed to add tip" }, { status: 500 });
   }
 }
