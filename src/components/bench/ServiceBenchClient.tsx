@@ -10,7 +10,7 @@ import { OdometerChart } from "@/components/bench/OdometerChart";
 import { RecallsPanel } from "@/components/bench/RecallsPanel";
 import { ShopsPanel } from "@/components/bench/ShopsPanel";
 import { normalizeServiceManualsResponse } from "@/lib/manual-catalog/normalize-client";
-import type { BenchSummary, MaintenanceLog, ServiceManual, ServiceSuggestion, Vehicle } from "@/lib/types";
+import type { BenchSummary, MaintenanceLog, ServiceManual, Vehicle } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -31,7 +31,6 @@ export function ServiceBenchClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [shopFilter, setShopFilter] = useState<string | null>(null);
-  const [suggestion, setSuggestion] = useState<ServiceSuggestion | null>(null);
 
   const load = useCallback(async () => {
     const [vehicleResult, logResult, manualResult, summaryResult] = await Promise.allSettled([
@@ -108,11 +107,7 @@ export function ServiceBenchClient() {
           <h1 className="text-2xl font-bold text-white">Service Bench</h1>
           <p className="mt-1 text-sm text-zinc-500">Maintenance logs and repair references for your fleet</p>
         </div>
-        <BenchActions
-          vehicles={vehicles}
-          suggestion={suggestion}
-          onSuggestionConsumed={() => setSuggestion(null)}
-        />
+        <BenchActions vehicles={vehicles} />
       </header>
 
       <BenchHeaderCards summary={summary} />
@@ -135,11 +130,7 @@ export function ServiceBenchClient() {
 
       <ShopsPanel logs={logs} activeShop={shopFilter} onFilterShop={setShopFilter} />
 
-      <MaintenanceRemindersPanel
-        logs={logs}
-        vehicleId={primaryVehicle?.id}
-        onApplySuggestion={setSuggestion}
-      />
+      <MaintenanceRemindersPanel logs={logs} vehicleId={primaryVehicle?.id} />
       <OdometerChart logs={logs} vehicleId={primaryVehicle?.id} />
       <FluidSpecPanel vehicles={vehicles} onSaved={load} />
       {primaryVehicle ? <RecallsPanel vehicleId={primaryVehicle.id} vehicle={primaryVehicle} /> : null}
