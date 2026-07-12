@@ -34,6 +34,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Large local-only manual resolver artifacts (use verified-manual-catalog.json for deploy)
+src/data/manual-link-cache.json
+src/data/nhtsa-vehicle-index.json
+
 # vercel
 .vercel
 
