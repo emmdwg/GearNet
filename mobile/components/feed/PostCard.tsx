@@ -1,19 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Animated, Image, Pressable, Share, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Alert, Pressable, Share, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useRef, useState } from "react";
+import { REACTION_TYPES, reactionEmoji, type ReactionType } from "../../lib/reactions";
 import type { Post } from "../../lib/types";
-import { api } from "../../lib/api";
+import { api, API_URL } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { colors, radii, spacing } from "../../lib/theme";
+import { colors, spacing } from "../../lib/theme";
 import { formatRelativeDate } from "../../lib/utils";
 import type { RootStackParamList } from "../../navigation/types";
 import { CreatePostForm } from "../forms/CreateForms";
+import { PostMedia } from "../media/PostMedia";
 import { Avatar } from "../ui/Avatar";
 import { Badge } from "../ui/Badge";
 import { BookmarkButton } from "../ui/BookmarkButton";
 import { OwnerActions } from "../ui/OwnerActions";
+import { PostFeedMenu } from "./PostFeedMenu";
 import { RichText } from "../ui/RichText";
 
 type Props = {
@@ -22,6 +25,8 @@ type Props = {
   onSignInRequired?: () => void;
   onOpen?: (postId: string) => void;
   onChanged?: () => void;
+  onHidden?: () => void;
+  onMuted?: () => void;
   initialBookmarked?: boolean;
   initialLiked?: boolean;
 };
@@ -32,6 +37,8 @@ export function PostCard({
   onSignInRequired,
   onOpen,
   onChanged,
+  onHidden,
+  onMuted,
   initialBookmarked,
   initialLiked = false,
 }: Props) {
@@ -39,10 +46,12 @@ export function PostCard({
   const { user: authUser } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { width } = useWindowDimensions();
-  const carouselWidth = width - spacing.lg * 2;
   const [likes, setLikes] = useState(post.likes);
-  const [liked, setLiked] = useState(initialLiked);
-  const [page, setPage] = useState(0);
+  const [userReaction, setUserReaction] = useState<ReactionType | null>(
+    post.userReaction ?? (initialLiked ? "like" : null),
+  );
+  const [reactionCounts, setReactionCounts] = useState(post.reactionCounts ?? {});
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const likeInFlight = useRef(false);
   const lastTap = useRef(0);
@@ -52,37 +61,74 @@ export function PostCard({
 
   if (!user) return null;
 
+  const collabNames = post.collaborators ?? [];
+  const isCollab = post.postType === "collab" || collabNames.length > 0;
+  const collabByUsername = new Map(
+    (post.collaboratorUsers ?? []).map((u) => [u.username.replace(/^@/, "").toLowerCase(), u]),
+  );
+  const collabEntries = collabNames.map((name, i) => {
+    const username = name.replace(/^@/, "");
+    const resolved = collabByUsername.get(username.toLowerCase());
+    const isUsername = /^[a-zA-Z0-9_]{2,30}$/.test(username);
+    return {
+      key: `${name}-${i}`,
+      username,
+      isUsername,
+      displayName: resolved?.displayName,
+      avatar: resolved?.avatar?.trim() || "",
+      raw: name,
+    };
+  });
+
+  function goToProfile(username: string) {
+    if (onProfilePress) onProfilePress(username);
+    else navigation.navigate("Profile", { username });
+  }
+
   async function handleDelete() {
     try {
       await api.deletePost(post.id);
       onChanged?.();
     } catch {
-      // ignore
+      Alert.alert("Error", "Couldn’t delete this post.");
     }
   }
 
-  const images = post.images && post.images.length > 0 ? post.images : [post.image];
-
-  async function toggleLikeRequest() {
-    if (likeInFlight.current) return;
-    likeInFlight.current = true;
-    try {
-      const result = await api.toggleLike("post", post.id);
-      setLiked(result.liked);
-      setLikes((n) => (result.liked ? n + 1 : Math.max(0, n - 1)));
-    } catch {
-      // ignore
-    } finally {
-      likeInFlight.current = false;
-    }
-  }
-
-  async function handleLike() {
+  async function handleReaction(type: ReactionType) {
     if (!authUser) {
       onSignInRequired?.();
       return;
     }
-    void toggleLikeRequest();
+    if (likeInFlight.current) return;
+    likeInFlight.current = true;
+    try {
+      const result = await api.setReaction("post", post.id, type);
+      const prev = userReaction;
+      setUserReaction((result.reactionType as ReactionType | null) ?? null);
+      setReactionCounts((counts) => {
+        const next = { ...counts };
+        if (prev && next[prev]) next[prev] = Math.max(0, (next[prev] ?? 0) - 1);
+        if (result.reactionType) {
+          const rt = result.reactionType as ReactionType;
+          next[rt] = (next[rt] ?? 0) + 1;
+        }
+        return next;
+      });
+      setLikes((n) => {
+        if (prev && !result.reactionType) return Math.max(0, n - 1);
+        if (!prev && result.reactionType) return n + 1;
+        return n;
+      });
+    } catch {
+      Alert.alert("Error", "Couldn’t update reaction.");
+    } finally {
+      likeInFlight.current = false;
+      setPickerOpen(false);
+    }
+  }
+
+  async function handleLike() {
+    void handleReaction(userReaction ? userReaction : "like");
   }
 
   function playBurst() {
@@ -94,7 +140,7 @@ export function PostCard({
     ]).start();
   }
 
-  function handleImagePress() {
+  function handleMediaPress() {
     const now = Date.now();
     if (now - lastTap.current < 280) {
       if (singleTimer.current) clearTimeout(singleTimer.current);
@@ -104,7 +150,7 @@ export function PostCard({
         onSignInRequired?.();
         return;
       }
-      if (!liked) void toggleLikeRequest();
+      if (!userReaction) void handleReaction("like");
     } else {
       lastTap.current = now;
       singleTimer.current = setTimeout(() => onOpen?.(post.id), 280);
@@ -112,8 +158,12 @@ export function PostCard({
   }
 
   async function handleShare() {
+    const url = `${API_URL.replace(/\/$/, "")}/post/${post.id}`;
     try {
-      await Share.share({ message: `${user!.displayName} on GearNet: ${post.caption}` });
+      await Share.share({
+        message: `${user!.displayName} on GearNet: ${post.caption}\n${url}`,
+        url,
+      });
     } catch {
       // cancelled
     }
@@ -127,97 +177,69 @@ export function PostCard({
           alt={user.displayName}
           onPress={onProfilePress ? () => onProfilePress(user.username) : undefined}
         />
-        <View style={styles.headerText}>
-          <Pressable onPress={onProfilePress ? () => onProfilePress(user.username) : undefined}>
-            <Text style={styles.name}>{user.displayName}</Text>
-          </Pressable>
-          <Text style={styles.meta}>
-            @{user.username} · {formatRelativeDate(post.createdAt)}
-          </Text>
-        </View>
+        <Pressable
+          style={styles.headerText}
+          onPress={onProfilePress ? () => onProfilePress(user.username) : undefined}
+        >
+          <Text style={styles.username}>{user.username}</Text>
+          {post.isSponsored ? (
+            <Text style={styles.sponsored}>
+              Paid partnership{post.sponsorName ? ` · ${post.sponsorName}` : ""}
+            </Text>
+          ) : null}
+          {post.vehicleRef ? <Text style={styles.vehicleRef}>{post.vehicleRef}</Text> : null}
+        </Pressable>
         <OwnerActions
           ownerId={post.userId}
           entityLabel="post"
           onEdit={() => setEditOpen(true)}
           onDelete={handleDelete}
         />
+        {authUser && authUser.id !== post.userId ? (
+          <PostFeedMenu
+            postId={post.id}
+            authorId={post.userId}
+            authorUsername={user.username}
+            onHidden={onHidden}
+            onMuted={onMuted}
+          />
+        ) : null}
       </View>
 
-      <View>
-        {images.length > 1 ? (
-          <View>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={(e) => {
-                const x = e.nativeEvent.contentOffset.x;
-                setPage(Math.round(x / carouselWidth));
-              }}
-              scrollEventThrottle={16}
-            >
-              {images.map((uri, i) => (
-                <Pressable key={`${uri}-${i}`} onPress={handleImagePress}>
-                  <Image
-                    source={{ uri }}
-                    style={[styles.image, { width: carouselWidth }]}
-                    accessibilityLabel={post.caption}
-                  />
-                </Pressable>
-              ))}
-            </ScrollView>
-            <View style={styles.counter}>
-              <Text style={styles.counterText}>
-                {page + 1}/{images.length}
-              </Text>
-            </View>
-            <View style={styles.dots}>
-              {images.map((_, i) => (
-                <View key={i} style={[styles.dot, i === page && styles.dotActive]} />
-              ))}
-            </View>
+      <View style={styles.mediaWrap}>
+        <PostMedia post={post} width={width} onPress={handleMediaPress} />
+        {post.dynoHighlight ? (
+          <View style={styles.dynoBadge}>
+            <Text style={styles.dynoText}>{post.dynoHighlight}</Text>
           </View>
-        ) : (
-          <Pressable onPress={handleImagePress}>
-            <Image source={{ uri: images[0] }} style={styles.image} accessibilityLabel={post.caption} />
-          </Pressable>
-        )}
+        ) : null}
         <Animated.View
           pointerEvents="none"
           style={[styles.burst, { opacity: burstOpacity, transform: [{ scale: burstScale }] }]}
         >
-          <Ionicons name="heart" size={96} color="#fff" />
+          <Ionicons name="flame" size={96} color={colors.accent} />
         </Animated.View>
       </View>
 
       <View style={styles.body}>
-        <RichText
-          text={post.caption}
-          style={styles.caption}
-          onPressTag={(t) => navigation.navigate("Tag", { tag: t })}
-          onPressMention={(username) =>
-            onProfilePress ? onProfilePress(username) : navigation.navigate("Profile", { username })
-          }
-        />
-        <View style={styles.tags}>
-          {post.tags.map((tag) => (
-            <Pressable key={tag} onPress={() => navigation.navigate("Tag", { tag })}>
-              <Badge variant="accent">{`#${tag}`}</Badge>
-            </Pressable>
-          ))}
-        </View>
         <View style={styles.actions}>
-          <Pressable style={styles.action} onPress={handleLike}>
-            <Ionicons name={liked ? "heart" : "heart-outline"} size={16} color={liked ? "#f87171" : colors.textDim} />
-            <Text style={[styles.actionText, liked && { color: "#f87171" }]}>{likes}</Text>
+          <Pressable onPress={() => setPickerOpen((v) => !v)} onLongPress={handleLike} hitSlop={8}>
+            <Text style={styles.reactionEmoji}>{userReaction ? reactionEmoji(userReaction) : "🔥"}</Text>
           </Pressable>
-          <Pressable style={styles.action} onPress={() => onOpen?.(post.id)}>
-            <Ionicons name="chatbubble-outline" size={16} color={colors.textDim} />
-            <Text style={styles.actionText}>{post.comments}</Text>
+          {pickerOpen ? (
+            <View style={styles.reactionPicker}>
+              {REACTION_TYPES.map((r) => (
+                <Pressable key={r.type} onPress={() => void handleReaction(r.type)} hitSlop={4}>
+                  <Text style={styles.pickerEmoji}>{r.emoji}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <Pressable onPress={() => onOpen?.(post.id)} hitSlop={8} style={styles.actionGap}>
+            <Ionicons name="chatbubble-outline" size={24} color={colors.text} />
           </Pressable>
-          <Pressable style={styles.action} onPress={handleShare}>
-            <Ionicons name="share-outline" size={16} color={colors.textDim} />
-            <Text style={styles.actionText}>Share</Text>
+          <Pressable onPress={handleShare} hitSlop={8} style={styles.actionGap}>
+            <Ionicons name="paper-plane-outline" size={24} color={colors.text} />
           </Pressable>
           <View style={styles.spacer} />
           <BookmarkButton
@@ -227,7 +249,120 @@ export function PostCard({
             onSignInRequired={onSignInRequired}
           />
         </View>
+
+        {likes > 0 ? (
+          <Text style={styles.likes}>
+            {likes.toLocaleString()} {likes === 1 ? "reaction" : "reactions"}
+          </Text>
+        ) : null}
+        {REACTION_TYPES.filter((r) => (reactionCounts[r.type] ?? 0) > 0).length > 0 ? (
+          <Text style={styles.reactionCounts}>
+            {REACTION_TYPES.filter((r) => (reactionCounts[r.type] ?? 0) > 0)
+              .map((r) => `${r.emoji} ${reactionCounts[r.type]}`)
+              .join("  ")}
+          </Text>
+        ) : null}
+
+        {isCollab ? (
+          <View style={styles.crewBlock}>
+            <View style={styles.crewRow}>
+              <Badge variant="accent">Build crew</Badge>
+              {collabEntries.some((c) => c.avatar) ? (
+                <View style={styles.avatarStack}>
+                  {collabEntries
+                    .filter((c) => c.avatar && c.isUsername)
+                    .slice(0, 5)
+                    .map((c, i) => (
+                      <Pressable
+                        key={c.key}
+                        onPress={() => goToProfile(c.username)}
+                        style={[styles.stackAvatar, { marginLeft: i === 0 ? 0 : -10, zIndex: 10 - i }]}
+                      >
+                        <Avatar src={c.avatar} alt={c.displayName || c.username} size="sm" />
+                      </Pressable>
+                    ))}
+                </View>
+              ) : null}
+              {collabEntries.filter((c) => !c.avatar).length > 0 ? (
+                <View style={styles.collabUsernames}>
+                  {collabEntries
+                    .filter((c) => !c.avatar)
+                    .map((c) =>
+                      c.isUsername ? (
+                        <Pressable key={c.key} onPress={() => goToProfile(c.username)}>
+                          <Text style={styles.collabLink}>@{c.username}</Text>
+                        </Pressable>
+                      ) : (
+                        <Text key={c.key} style={styles.collaborators}>
+                          {c.raw}
+                        </Text>
+                      ),
+                    )}
+                </View>
+              ) : null}
+            </View>
+            {collabEntries.length > 0 ? (
+              <Text style={styles.collaborators}>
+                With{" "}
+                {collabEntries.map((c, i) => (
+                  <Text key={c.key}>
+                    {i > 0 ? ", " : ""}
+                    {c.isUsername ? (
+                      <Text style={styles.collabLink} onPress={() => goToProfile(c.username)}>
+                        @{c.username}
+                      </Text>
+                    ) : (
+                      c.raw
+                    )}
+                  </Text>
+                ))}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        <Text style={styles.caption}>
+          <Text style={styles.captionUser}>{user.username} </Text>
+          <RichText
+            text={post.caption ?? ""}
+            style={styles.captionText}
+            onPressTag={(t) => navigation.navigate("Tag", { tag: t })}
+            onPressMention={(username) =>
+              onProfilePress ? onProfilePress(username) : navigation.navigate("Profile", { username })
+            }
+          />
+        </Text>
+
+        {post.postType === "before-after" ? (
+          <View style={styles.typeBadge}>
+            <Badge variant="outline">Before/After</Badge>
+          </View>
+        ) : null}
+        {post.audioUrl ? (
+          <View style={styles.typeBadge}>
+            <Badge variant="outline">Audio</Badge>
+          </View>
+        ) : null}
+
+        {(post.tags ?? []).length > 0 ? (
+          <View style={styles.tags}>
+            {(post.tags ?? []).map((tag) => (
+              <Pressable key={tag} onPress={() => navigation.navigate("Tag", { tag })}>
+                <Badge variant="accent">{`#${tag}`}</Badge>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {post.comments > 0 ? (
+          <Pressable onPress={() => onOpen?.(post.id)}>
+            <Text style={styles.viewComments}>View all {post.comments} comments</Text>
+          </Pressable>
+        ) : null}
+
+        <Text style={styles.time}>{formatRelativeDate(post.createdAt)}</Text>
       </View>
+
       <CreatePostForm
         visible={editOpen}
         editing={post}
@@ -243,101 +378,88 @@ export function PostCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.cardMuted,
-    overflow: "hidden",
-    marginBottom: spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
+    marginBottom: spacing.sm,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    padding: spacing.md,
+    gap: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
   },
-  headerText: {
-    flex: 1,
-  },
-  name: {
-    fontWeight: "600",
-    color: colors.text,
-    fontSize: 15,
-  },
-  meta: {
-    fontSize: 12,
-    color: colors.textDim,
-    marginTop: 2,
-  },
-  image: {
-    width: "100%",
-    aspectRatio: 3 / 2,
-    backgroundColor: colors.border,
-  },
-  burst: {
+  headerText: { flex: 1 },
+  username: { fontWeight: "600", color: colors.text, fontSize: 14 },
+  sponsored: { color: "#fbbf24", fontSize: 11, fontWeight: "500", marginTop: 1 },
+  vehicleRef: { fontSize: 11, color: colors.textDim, marginTop: 1 },
+  typeBadge: { marginTop: 4 },
+  mediaWrap: { position: "relative" },
+  dynoBadge: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    bottom: 8,
+    left: 8,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  dynoText: { fontSize: 11, color: colors.accent, fontWeight: "600" },
+  reactionEmoji: { fontSize: 26 },
+  reactionPicker: {
+    flexDirection: "row",
+    gap: 6,
+    marginLeft: 8,
+    backgroundColor: colors.cardMuted,
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pickerEmoji: { fontSize: 20 },
+  reactionCounts: { fontSize: 12, color: colors.textDim },
+  burst: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
   },
-  counter: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "rgba(9,9,11,0.6)",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  counterText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-  dots: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.borderLight,
-  },
-  dotActive: {
-    backgroundColor: colors.accent,
-  },
   body: {
-    padding: spacing.md,
-    gap: 12,
-  },
-  caption: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textMuted,
-  },
-  tags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    paddingHorizontal: spacing.md,
+    paddingTop: 10,
+    paddingBottom: spacing.md,
     gap: 6,
   },
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 24,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
+    marginBottom: 4,
   },
+  actionGap: { marginLeft: 16 },
   spacer: { flex: 1 },
-  action: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  likes: { fontSize: 14, fontWeight: "600", color: colors.text },
+  caption: { fontSize: 14, lineHeight: 20 },
+  crewBlock: { gap: 6, marginBottom: 2 },
+  crewRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  avatarStack: { flexDirection: "row", alignItems: "center", paddingLeft: 2 },
+  stackAvatar: {
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: colors.background,
   },
-  actionText: {
-    fontSize: 13,
+  collabUsernames: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  collaborators: { fontSize: 12, color: colors.textDim, marginBottom: 4 },
+  collabLink: { color: colors.accent },
+  captionUser: { fontWeight: "600", color: colors.text },
+  captionText: { color: colors.textMuted },
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  viewComments: { fontSize: 14, color: colors.textDim },
+  time: {
+    fontSize: 11,
     color: colors.textDim,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginTop: 2,
   },
 });

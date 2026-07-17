@@ -1,8 +1,17 @@
 import { jsonArray, parseJsonArray } from "@/lib/api-helpers";
+import { parseVideoChapters } from "@/lib/blur-regions";
 import { sendNotificationEmail } from "@/lib/email";
 import { sendPushToUser } from "@/lib/push";
 import { isBlocked } from "@/lib/blocking";
+import { isInQuietHours } from "@/lib/quiet-hours";
+import { notifyMentions } from "@/lib/mentions";
+import { getNotificationHref } from "@/lib/notification-types";
 import { prisma } from "@/lib/prisma";
+import {
+  isReactionType,
+  type ReactionCounts,
+  type ReactionType,
+} from "@/lib/reactions";
 
 export type SocialTargetType = "post" | "pit_update";
 export type LikeTargetType = SocialTargetType | "comment";
@@ -58,19 +67,32 @@ export async function createNotification(data: {
   targetId?: string;
   title: string;
   body: string;
+  groupKey?: string;
 }) {
-  if (data.userId === data.actorId) return;
+  // Meet reminders may notify the organizer about their own RSVP'd meet.
+  if (data.userId === data.actorId && data.type !== "meet_reminder") return;
+
+  const groupKey =
+    data.groupKey ??
+    (data.targetType && data.targetId ? `${data.type}:${data.targetType}:${data.targetId}` : undefined);
 
   const settings = await getOrCreateSettings(data.userId);
   const isMessage = data.type === "message";
-  if (isMessage && !settings.messageAlerts) return;
-  if (!isMessage && !settings.activityAlerts) return;
+  const isMeet = data.type === "meet" || data.type === "event" || data.type === "meet_reminder";
+  const isMarketplace =
+    data.type === "marketplace" || data.type === "trade" || data.type === "trade_offer" || data.type === "saved_search";
 
-  await prisma.notification.create({ data });
+  if (isMessage && !settings.messageAlerts) return;
+  if (isMeet && !settings.meetReminders) return;
+  if (isMarketplace && settings.marketplaceAlerts === false) return;
+  if (!isMessage && !isMeet && !isMarketplace && !settings.activityAlerts) return;
+
+  await prisma.notification.create({ data: { ...data, groupKey } });
 
   const url = await buildNotificationUrl(data);
+  const suppressPush = isInQuietHours(settings.quietHoursStart, settings.quietHoursEnd);
 
-  if (settings.pushNotifications) {
+  if (settings.pushNotifications && !suppressPush) {
     await sendPushToUser(data.userId, {
       title: data.title,
       body: data.body,
@@ -101,39 +123,67 @@ async function buildNotificationUrl(data: {
   targetType?: string;
   targetId?: string;
 }) {
-  if (data.type === "message") return "/chat";
-  if (data.targetType === "post" && data.targetId) return `/explore?post=${data.targetId}`;
-  if (data.targetType === "pit_update" && data.targetId) return `/explore?pit=${data.targetId}`;
-  if (data.type === "follow") {
+  let targetType = data.targetType;
+  let targetId = data.targetId;
+
+  // Comment likes store the comment id — resolve to the parent post/pit for deep links.
+  if (targetType === "comment" && targetId) {
+    const comment = await prisma.comment.findUnique({
+      where: { id: targetId },
+      select: { targetType: true, targetId: true },
+    });
+    if (comment) {
+      targetType = comment.targetType;
+      targetId = comment.targetId;
+    }
+  }
+
+  let actorUsername: string | undefined;
+  if (data.type === "follow" || data.type === "follow_request" || targetType === "user") {
     const actor = await prisma.user.findUnique({
       where: { id: data.actorId },
       select: { username: true },
     });
-    if (actor) return `/profile/${actor.username}`;
+    actorUsername = actor?.username;
   }
-  return "/activity";
+
+  return getNotificationHref({
+    type: data.type,
+    targetType,
+    targetId,
+    actorUsername,
+  });
 }
 
-export async function toggleLike(userId: string, targetType: LikeTargetType, targetId: string) {
+export async function setReaction(
+  userId: string,
+  targetType: LikeTargetType,
+  targetId: string,
+  reactionType: ReactionType,
+) {
   const existing = await prisma.like.findUnique({
     where: { userId_targetType_targetId: { userId, targetType, targetId } },
   });
 
   if (existing) {
-    await prisma.like.delete({ where: { id: existing.id } });
-    if (targetType === "post" || targetType === "pit_update") {
-      await incrementLikeCount(targetType, targetId, -1);
+    if (existing.reactionType === reactionType) {
+      await prisma.like.delete({ where: { id: existing.id } });
+      if (targetType === "post" || targetType === "pit_update") {
+        await incrementLikeCount(targetType, targetId, -1);
+      }
+      return { reacted: false, reactionType: null, liked: false };
     }
-    return { liked: false };
+    await prisma.like.update({ where: { id: existing.id }, data: { reactionType } });
+    return { reacted: true, reactionType, liked: true };
   }
 
-  await prisma.like.create({ data: { userId, targetType, targetId } });
+  await prisma.like.create({ data: { userId, targetType, targetId, reactionType } });
   if (targetType === "post" || targetType === "pit_update") {
     await incrementLikeCount(targetType, targetId, 1);
   }
 
   const actor = await prisma.user.findUnique({ where: { id: userId } });
-  if (!actor) return { liked: true };
+  if (!actor) return { reacted: true, reactionType, liked: true };
 
   if (targetType === "comment") {
     const comment = await prisma.comment.findUnique({ where: { id: targetId }, select: { userId: true } });
@@ -148,7 +198,7 @@ export async function toggleLike(userId: string, targetType: LikeTargetType, tar
         body: `${actor.displayName} liked your comment`,
       });
     }
-    return { liked: true };
+    return { reacted: true, reactionType, liked: true };
   }
 
   const ownerId = await getTargetOwner(targetType, targetId);
@@ -159,12 +209,17 @@ export async function toggleLike(userId: string, targetType: LikeTargetType, tar
       type: "like",
       targetType,
       targetId,
-      title: "New like",
-      body: `${actor.displayName} liked your ${targetType === "pit_update" ? "pit update" : "post"}`,
+      title: "New reaction",
+      body: `${actor.displayName} reacted to your ${targetType === "pit_update" ? "pit update" : "post"}`,
     });
   }
 
-  return { liked: true };
+  return { reacted: true, reactionType, liked: true };
+}
+
+export async function toggleLike(userId: string, targetType: LikeTargetType, targetId: string) {
+  const result = await setReaction(userId, targetType, targetId, "like");
+  return { liked: result.reacted };
 }
 
 export async function addComment(
@@ -172,7 +227,8 @@ export async function addComment(
   targetType: SocialTargetType,
   targetId: string,
   content: string,
-  parentId?: string
+  parentId?: string,
+  quotedCommentId?: string
 ) {
   if (parentId) {
     const parent = await prisma.comment.findFirst({
@@ -182,9 +238,27 @@ export async function addComment(
     if (!parent) throw new Error("Parent comment not found");
   }
 
+  if (quotedCommentId) {
+    const quoted = await prisma.comment.findFirst({
+      where: { id: quotedCommentId, targetType, targetId },
+      select: { id: true },
+    });
+    if (!quoted) throw new Error("Quoted comment not found");
+  }
+
   const comment = await prisma.comment.create({
-    data: { userId, targetType, targetId, content, parentId: parentId ?? null },
-    include: { user: true },
+    data: {
+      userId,
+      targetType,
+      targetId,
+      content,
+      parentId: parentId ?? null,
+      quotedCommentId: quotedCommentId ?? null,
+    },
+    include: {
+      user: true,
+      quotedComment: { include: { user: true } },
+    },
   });
 
   await incrementCommentCount(targetType, targetId, 1);
@@ -218,8 +292,23 @@ export async function addComment(
     }
   }
 
+  await notifyMentions({
+    actorId: userId,
+    text: content,
+    targetType,
+    targetId,
+    title: "You were mentioned",
+    bodyPrefix: `${actor.displayName} mentioned you in a comment`,
+  });
+
   return serializeComment(comment, 0, false, []);
 }
+
+type QuotedCommentSnippet = {
+  id: string;
+  content: string;
+  user: { id: string; username: string; displayName: string; avatar: string };
+};
 
 type SerializedComment = {
   id: string;
@@ -227,6 +316,8 @@ type SerializedComment = {
   targetType: string;
   targetId: string;
   parentId: string | null;
+  quotedCommentId: string | null;
+  quotedComment: QuotedCommentSnippet | null;
   content: string;
   likes: number;
   liked: boolean;
@@ -235,6 +326,26 @@ type SerializedComment = {
   replies: SerializedComment[];
 };
 
+function serializeQuotedComment(
+  quoted: {
+    id: string;
+    content: string;
+    user: { id: string; username: string; displayName: string; avatar: string | null };
+  } | null | undefined
+): QuotedCommentSnippet | null {
+  if (!quoted) return null;
+  return {
+    id: quoted.id,
+    content: quoted.content,
+    user: {
+      id: quoted.user.id,
+      username: quoted.user.username,
+      displayName: quoted.user.displayName,
+      avatar: quoted.user.avatar ?? "",
+    },
+  };
+}
+
 function serializeComment(
   comment: {
     id: string;
@@ -242,13 +353,20 @@ function serializeComment(
     targetType: string;
     targetId: string;
     parentId: string | null;
+    quotedCommentId?: string | null;
     content: string;
     createdAt: Date;
     user: { id: string; username: string; displayName: string; avatar: string | null };
+    quotedComment?: {
+      id: string;
+      content: string;
+      user: { id: string; username: string; displayName: string; avatar: string | null };
+    } | null;
   },
   likes: number,
   liked: boolean,
-  replies: SerializedComment[]
+  replies: SerializedComment[],
+  quotedComment?: QuotedCommentSnippet | null
 ): SerializedComment {
   return {
     id: comment.id,
@@ -256,6 +374,8 @@ function serializeComment(
     targetType: comment.targetType,
     targetId: comment.targetId,
     parentId: comment.parentId,
+    quotedCommentId: comment.quotedCommentId ?? null,
+    quotedComment: quotedComment ?? serializeQuotedComment(comment.quotedComment),
     content: comment.content,
     likes,
     liked,
@@ -273,7 +393,10 @@ function serializeComment(
 export async function getComments(targetType: SocialTargetType, targetId: string, viewerId?: string) {
   const comments = await prisma.comment.findMany({
     where: { targetType, targetId },
-    include: { user: true },
+    include: {
+      user: true,
+      quotedComment: { include: { user: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
 
@@ -355,21 +478,99 @@ export async function getUserLikeState(userId: string | undefined, targetType: S
   return Boolean(like);
 }
 
+export async function getUserReaction(
+  userId: string | undefined,
+  targetType: SocialTargetType,
+  targetId: string,
+): Promise<ReactionType | null> {
+  if (!userId) return null;
+  const like = await prisma.like.findUnique({
+    where: { userId_targetType_targetId: { userId, targetType, targetId } },
+  });
+  if (!like) return null;
+  return isReactionType(like.reactionType) ? like.reactionType : "like";
+}
+
+export async function getPostReactionSummaries(postIds: string[], viewerId?: string) {
+  const map = new Map<string, { reactionCounts: ReactionCounts; userReaction: ReactionType | null }>();
+  if (postIds.length === 0) return map;
+
+  for (const id of postIds) {
+    map.set(id, { reactionCounts: {}, userReaction: null });
+  }
+
+  const likes = await prisma.like.findMany({
+    where: { targetType: "post", targetId: { in: postIds } },
+    select: { targetId: true, reactionType: true, userId: true },
+  });
+
+  for (const like of likes) {
+    const entry = map.get(like.targetId);
+    if (!entry) continue;
+    const type = isReactionType(like.reactionType) ? like.reactionType : "like";
+    entry.reactionCounts[type] = (entry.reactionCounts[type] ?? 0) + 1;
+    if (viewerId && like.userId === viewerId) entry.userReaction = type;
+  }
+
+  return map;
+}
+
 export async function getNotifications(userId: string) {
   const items = await prisma.notification.findMany({
     where: { userId },
     include: { actor: true },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 80,
   });
 
-  return items.map((n) => ({
+  const grouped = new Map<string, (typeof items)[number][]>();
+  const standalone: (typeof items) = [];
+
+  for (const n of items) {
+    if (n.groupKey) {
+      const bucket = grouped.get(n.groupKey) ?? [];
+      bucket.push(n);
+      grouped.set(n.groupKey, bucket);
+    } else {
+      standalone.push(n);
+    }
+  }
+
+  type Row = (typeof items)[number] & { groupCount?: number; groupedActors?: string[] };
+
+  const result: Row[] = [];
+  const seenGroups = new Set<string>();
+
+  for (const n of items) {
+    if (n.groupKey && grouped.has(n.groupKey)) {
+      if (seenGroups.has(n.groupKey)) continue;
+      seenGroups.add(n.groupKey);
+      const bucket = grouped.get(n.groupKey)!;
+      const latest = bucket[0];
+      result.push({
+        ...latest,
+        groupCount: bucket.length,
+        groupedActors: [...new Set(bucket.map((b) => b.actor.displayName))].slice(0, 3),
+        read: bucket.every((b) => b.read),
+      });
+    } else if (!n.groupKey) {
+      result.push(n);
+    }
+  }
+
+  return result.slice(0, 50).map((n) => ({
     id: n.id,
     type: n.type,
     targetType: n.targetType,
     targetId: n.targetId,
+    groupKey: n.groupKey,
+    groupCount: (n as Row).groupCount,
+    groupedActors: (n as Row).groupedActors,
     title: n.title,
-    body: n.body,
+    body:
+      (n as Row).groupCount && (n as Row).groupCount! > 1
+        ? `${(n as Row).groupedActors?.join(", ")} and ${(n as Row).groupCount! - 1} others — ${n.body}`
+        : n.body,
     read: n.read,
     createdAt: n.createdAt.toISOString(),
     actor: {
@@ -425,7 +626,7 @@ export async function getBookmarkIds(userId: string, targetType: BookmarkTargetT
 }
 
 export async function toggleFollow(followerId: string, followingId: string) {
-  if (followerId === followingId) return { following: false };
+  if (followerId === followingId) return { following: false, followRequestPending: false };
   if (await isBlocked(followerId, followingId)) {
     throw new Error("Action not allowed");
   }
@@ -436,7 +637,37 @@ export async function toggleFollow(followerId: string, followingId: string) {
 
   if (existing) {
     await prisma.follow.delete({ where: { id: existing.id } });
-    return { following: false };
+    return { following: false, followRequestPending: false };
+  }
+
+  const pendingRequest = await prisma.followRequest.findUnique({
+    where: { requesterId_targetId: { requesterId: followerId, targetId: followingId } },
+  });
+  if (pendingRequest?.status === "pending") {
+    await prisma.followRequest.delete({ where: { id: pendingRequest.id } });
+    return { following: false, followRequestPending: false };
+  }
+
+  const settings = await getOrCreateSettings(followingId);
+  if (settings.profileVisibility === "private") {
+    const actor = await prisma.user.findUnique({ where: { id: followerId } });
+    const request = await prisma.followRequest.upsert({
+      where: { requesterId_targetId: { requesterId: followerId, targetId: followingId } },
+      create: { requesterId: followerId, targetId: followingId, status: "pending" },
+      update: { status: "pending", reviewedAt: null },
+    });
+    if (actor) {
+      await createNotification({
+        userId: followingId,
+        actorId: followerId,
+        type: "follow_request",
+        targetType: "follow_request",
+        targetId: request.id,
+        title: "Follow request",
+        body: `${actor.displayName} requested to follow you`,
+      });
+    }
+    return { following: false, followRequestPending: true };
   }
 
   await prisma.follow.create({ data: { followerId, followingId } });
@@ -452,7 +683,51 @@ export async function toggleFollow(followerId: string, followingId: string) {
     });
   }
 
-  return { following: true };
+  return { following: true, followRequestPending: false };
+}
+
+export async function reviewFollowRequest(
+  requestId: string,
+  targetUserId: string,
+  action: "approve" | "reject"
+) {
+  const request = await prisma.followRequest.findFirst({
+    where: { id: requestId, targetId: targetUserId, status: "pending" },
+  });
+  if (!request) return null;
+
+  if (action === "reject") {
+    await prisma.followRequest.update({
+      where: { id: request.id },
+      data: { status: "rejected", reviewedAt: new Date() },
+    });
+    return { status: "rejected" as const };
+  }
+
+  await prisma.$transaction([
+    prisma.follow.upsert({
+      where: { followerId_followingId: { followerId: request.requesterId, followingId: request.targetId } },
+      create: { followerId: request.requesterId, followingId: request.targetId },
+      update: {},
+    }),
+    prisma.followRequest.update({
+      where: { id: request.id },
+      data: { status: "approved", reviewedAt: new Date() },
+    }),
+  ]);
+
+  const actor = await prisma.user.findUnique({ where: { id: request.requesterId } });
+  if (actor) {
+    await createNotification({
+      userId: request.requesterId,
+      actorId: targetUserId,
+      type: "follow",
+      title: "Follow request accepted",
+      body: `${(await prisma.user.findUnique({ where: { id: targetUserId } }))?.displayName ?? "They"} accepted your follow request`,
+    });
+  }
+
+  return { status: "approved" as const };
 }
 
 export async function notifyFollowersOfNewPost(authorId: string, postId: string) {
@@ -488,15 +763,25 @@ export async function notifyFollowersOfNewPost(authorId: string, postId: string)
 }
 
 export async function getFollowStats(userId: string, viewerId?: string) {
-  const [followers, following, viewerFollows] = await Promise.all([
+  const [followers, following, viewerFollows, pendingRequest] = await Promise.all([
     prisma.follow.count({ where: { followingId: userId } }),
     prisma.follow.count({ where: { followerId: userId } }),
     viewerId && viewerId !== userId
       ? prisma.follow.findUnique({ where: { followerId_followingId: { followerId: viewerId, followingId: userId } } })
       : Promise.resolve(null),
+    viewerId && viewerId !== userId
+      ? prisma.followRequest.findFirst({
+          where: { requesterId: viewerId, targetId: userId, status: "pending" },
+        })
+      : Promise.resolve(null),
   ]);
 
-  return { followers, following, isFollowing: Boolean(viewerFollows) };
+  return {
+    followers,
+    following,
+    isFollowing: Boolean(viewerFollows),
+    followRequestPending: Boolean(pendingRequest),
+  };
 }
 
 export function serializeImagesField(imagesJson: string, fallbackImage: string) {
@@ -506,4 +791,50 @@ export function serializeImagesField(imagesJson: string, fallbackImage: string) 
 
 export function imagesToJson(images: string[]) {
   return jsonArray(images);
+}
+
+export function serializePostMediaFields(post: {
+  image: string;
+  images: string;
+  mediaType?: string | null;
+  videoUrl?: string | null;
+  videoDuration?: number | null;
+  videoPoster?: string | null;
+  videoChapters?: string | null;
+}) {
+  let videoChapters: { timeSec: number; label: string }[] = [];
+  try {
+    const parsed = JSON.parse(post.videoChapters ?? "[]");
+    if (Array.isArray(parsed)) {
+      videoChapters = parsed
+        .filter((c) => c && typeof c.timeSec === "number" && typeof c.label === "string")
+        .map((c) => ({ timeSec: c.timeSec, label: c.label }));
+    }
+  } catch {
+    videoChapters = [];
+  }
+
+  return {
+    image: post.image,
+    images: serializeImagesField(post.images, post.image),
+    mediaType: (post.mediaType === "video" ? "video" : "image") as "image" | "video",
+    videoUrl: post.videoUrl ?? undefined,
+    videoDuration: post.videoDuration ?? undefined,
+    videoPoster: post.videoPoster ?? undefined,
+    videoChapters,
+  };
+}
+
+export function validateVideoPayload(input: { videoUrl?: string; videoDuration?: number }) {
+  if (!input.videoUrl?.trim()) {
+    return "Video URL is required for video posts";
+  }
+  if (typeof input.videoDuration === "number" && input.videoDuration > 60) {
+    return "Videos must be one minute or shorter";
+  }
+  return null;
+}
+
+export function videoChaptersToJson(chapters: unknown) {
+  return JSON.stringify(parseVideoChapters(chapters));
 }

@@ -218,13 +218,24 @@ export const api = {
   },
   getPitUpdates: () => fetchApi<PitUpdate[]>("/api/pit-updates"),
   getEvents: () => fetchApi<Event[]>("/api/events"),
-  getListings: () => fetchApi<MarketplaceListing[]>("/api/marketplace"),
+  getEvent: (id: string) => fetchApi<Event>(`/api/events/${encodeURIComponent(id)}`),
+  updateEvent: (id: string, data: Record<string, unknown>) =>
+    fetchApi<Event>(`/api/events/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteEvent: (id: string) =>
+    fetchApi<{ deleted: boolean }>(`/api/events/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  getListings: (opts?: { fitsMyCars?: boolean }) =>
+    fetchApi<MarketplaceListing[]>(
+      opts?.fitsMyCars ? "/api/marketplace?fitsMyCars=1" : "/api/marketplace",
+    ),
   getVehicles: () => fetchApi<Vehicle[]>("/api/vehicles"),
   getMaintenanceLogs: () => fetchApi<MaintenanceLog[]>("/api/maintenance"),
 
   getBenchSummary: () => fetchApi<BenchSummary>("/api/maintenance?type=summary"),
 
-  getMyShops: () => fetchApi<ShopSummary[]>("/api/shops?scope=mine"),
+  getMyShops: () => fetchApi<ShopSummary[]>("/api/shops"),
 
   getShopRatings: (shopName: string) =>
     fetchApi<ShopRatingSummary>(`/api/shops/ratings?shopName=${encodeURIComponent(shopName)}`),
@@ -238,7 +249,7 @@ export const api = {
     ),
 
   getManualGuideNotes: (make: string, model: string) =>
-    fetchApi<{ notes: ManualGuideNote[] }>(
+    fetchApi<{ notes: ManualGuideNote[]; available?: boolean }>(
       `/api/manuals/notes?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`,
     ),
 
@@ -254,7 +265,12 @@ export const api = {
     fetchApi<{ id: string; upvotes: number }>(`/api/manuals/notes/${id}/upvote`, { method: "POST" }),
 
   getVehicleRecalls: (vehicleId: string) =>
-    fetchApi<{ recalls: unknown[]; acknowledged: string[] }>(`/api/vehicles/${vehicleId}/recalls`),
+    fetchApi<{
+      recalls: unknown[];
+      acknowledged: string[];
+      unavailable?: boolean;
+      error?: string;
+    }>(`/api/vehicles/${vehicleId}/recalls`),
 
   acknowledgeRecall: (vehicleId: string, campaignNumber: string) =>
     fetchApi<{ acknowledged: string }>(`/api/vehicles/${vehicleId}/recalls`, {
@@ -262,8 +278,7 @@ export const api = {
       body: JSON.stringify({ campaignNumber }),
     }),
 
-  getShops: (scope?: "mine") =>
-    fetchApi<ShopSummary[]>(scope ? `/api/shops?scope=${scope}` : "/api/shops"),
+  getShops: () => fetchApi<ShopSummary[]>("/api/shops"),
 
   getServiceManuals: async (limit = 48, offset = 0) =>
     normalizeServiceManualsResponse(
@@ -282,6 +297,8 @@ export const api = {
     };
   },
   getConversations: () => fetchApi<Conversation[]>("/api/conversations"),
+  getConversation: (id: string) =>
+    fetchApi<Conversation>(`/api/conversations/${encodeURIComponent(id)}`),
 
   openClubCrewChat: (slug: string) =>
     fetchApi<{ conversationId: string }>(`/api/clubs/${encodeURIComponent(slug)}/crew-chat`, { method: "POST" }),
@@ -311,8 +328,11 @@ export const api = {
       }
     ),
 
-  rsvpEvent: (eventId: string) =>
-    fetchApi<{ rsvped: boolean }>(`/api/events/${eventId}/rsvp`, { method: "POST" }),
+  rsvpEvent: (eventId: string, rsvpStatus?: string) =>
+    fetchApi<{ rsvped: boolean; rsvpStatus: string | null }>(`/api/events/${eventId}/rsvp`, {
+      method: "POST",
+      body: JSON.stringify(rsvpStatus ? { rsvpStatus } : {}),
+    }),
 
   getUser: (username: string) =>
     fetchApi<{ user: User; vehicles: Vehicle[]; posts: Post[]; followStats: FollowStats; view: ProfileView }>(
@@ -377,7 +397,11 @@ export const api = {
       audioUrl?: string | null;
       latitude?: number | null;
       longitude?: number | null;
-      status?: "draft" | "published";
+      status?: "draft" | "published" | "scheduled";
+      scheduledAt?: string | null;
+      isSponsored?: boolean;
+      sponsorName?: string | null;
+      sponsorUrl?: string | null;
     }
   ) => fetchApi<Post>(`/api/posts/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 
@@ -397,6 +421,8 @@ export const api = {
       vehicleId?: string | null;
       fitmentTags?: string[];
       images?: string[];
+      markSold?: boolean;
+      soldPrice?: number;
     }
   ) => fetchApi<MarketplaceListing>(`/api/marketplace/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 
@@ -415,6 +441,9 @@ export const api = {
       vin?: string;
       projectStatus?: string;
       buildProgress?: number;
+      installHours?: number | null;
+      waitingOnParts?: boolean;
+      waitingOnPartsNote?: string | null;
       forSale?: boolean;
       fluidNotes?: string | null;
     }
@@ -434,14 +463,18 @@ export const api = {
     clubId?: string;
     vehicleId?: string;
     postType?: PostType;
-    beforeImage?: string;
-    afterImage?: string;
+    beforeImage?: string | null;
+    afterImage?: string | null;
     inspiredByPostId?: string;
     collaborators?: string[];
     audioUrl?: string;
     latitude?: number;
     longitude?: number;
-    status?: "draft" | "published";
+    status?: "draft" | "published" | "scheduled";
+    scheduledAt?: string;
+    isSponsored?: boolean;
+    sponsorName?: string;
+    sponsorUrl?: string;
   }) => fetchApi<Post>("/api/posts", { method: "POST", body: JSON.stringify(data) }),
 
   toggleLike: (targetType: LikeTargetType, targetId: string, reactionType?: string) =>
@@ -464,6 +497,8 @@ export const api = {
     }),
 
   getDraftPosts: () => fetchApi<Post[]>("/api/posts?status=draft"),
+
+  getScheduledPosts: () => fetchApi<Post[]>("/api/posts?mine=1&status=scheduled"),
 
   decodeVin: (vin: string) =>
     fetchApi<{ vin: string; year?: number; make?: string; model?: string; trim?: string }>(
@@ -491,7 +526,11 @@ export const api = {
   deleteComment: (id: string) =>
     fetchApi<{ ok: boolean }>(`/api/comments/${id}`, { method: "DELETE" }),
 
-  deleteAccount: () => fetchApi<{ ok: boolean }>("/api/account", { method: "DELETE" }),
+  deleteAccount: (username: string) =>
+    fetchApi<{ ok: boolean }>("/api/account", {
+      method: "DELETE",
+      body: JSON.stringify({ confirm: "DELETE", username }),
+    }),
 
   getNotifications: () =>
     fetchApi<{ items: Notification[]; unreadCount: number }>("/api/notifications"),
@@ -529,6 +568,10 @@ export const api = {
     vin?: string;
     projectStatus?: string;
     buildProgress?: number;
+    installHours?: number | null;
+    waitingOnParts?: boolean;
+    waitingOnPartsNote?: string | null;
+    forSale?: boolean;
   }) => fetchApi<Vehicle>("/api/vehicles", { method: "POST", body: JSON.stringify(data) }),
 
   createEvent: (data: {
@@ -592,6 +635,21 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ action }),
     }),
+  addClubMember: (slug: string, data: { username?: string; userId?: string }) =>
+    fetchApi<{ ok: boolean; userId: string; username?: string; role: string; alreadyMember?: boolean }>(
+      `/api/clubs/${encodeURIComponent(slug)}/members`,
+      { method: "POST", body: JSON.stringify(data) }
+    ),
+  updateClubMemberRole: (slug: string, userId: string, role: "admin" | "associate" | "member") =>
+    fetchApi<{ ok: boolean; userId: string; role: string }>(`/api/clubs/${encodeURIComponent(slug)}/members`, {
+      method: "PATCH",
+      body: JSON.stringify({ userId, role }),
+    }),
+  removeClubMember: (slug: string, userId: string) =>
+    fetchApi<{ ok: boolean; removed: string }>(`/api/clubs/${encodeURIComponent(slug)}/members`, {
+      method: "DELETE",
+      body: JSON.stringify({ userId }),
+    }),
 
   getClubChallenges: (slug: string) =>
     fetchApi<ClubChallenge[]>(`/api/clubs/${encodeURIComponent(slug)}/challenges`),
@@ -607,6 +665,11 @@ export const api = {
     fetchApi<{ id: string }>(`/api/clubs/${encodeURIComponent(slug)}/challenges/${challengeId}/enter`, {
       method: "POST",
       body: JSON.stringify({ postId }),
+    }),
+  completeClubChallenge: (slug: string, challengeId: string, winnerId?: string | null) =>
+    fetchApi<ClubChallenge>(`/api/clubs/${encodeURIComponent(slug)}/challenges/${challengeId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "completed", winnerId: winnerId ?? null }),
     }),
 
   getClubChapters: (slug: string) =>
@@ -637,6 +700,12 @@ export const api = {
     }),
 
   getVehicle: (id: string) => fetchApi<VehicleDetail>(`/api/vehicles/${id}`),
+
+  resolveVehicleSlug: (username: string, slug: string) =>
+    fetchApi<{ id: string }>(
+      `/api/vehicles/resolve?username=${encodeURIComponent(username)}&slug=${encodeURIComponent(slug)}`,
+    ),
+
   createBuildLog: (
     vehicleId: string,
     data: {
@@ -685,7 +754,15 @@ export const api = {
     }),
 
   getGarageAnalytics: () =>
-    fetchApi<{ profileViews: number; vehicleCount: number; modSpendTotal: number }>("/api/garage/analytics"),
+    fetchApi<{
+      profileViews: number;
+      vehicleCount: number;
+      modSpendTotal: number;
+      postSaves?: number;
+      listingClicks?: number;
+      totalReactions?: number;
+      reactions?: Record<string, number>;
+    }>("/api/garage/analytics"),
 
   requestVerifiedSeller: () =>
     fetchApi<{ ok: boolean }>("/api/settings/verified-seller", { method: "POST" }),
@@ -712,13 +789,38 @@ export const api = {
     title: string;
     description: string;
     mileage: number;
-    cost?: number;
+    cost?: number | null;
     category: string;
     performedAt: string;
-    shopName?: string;
-    receiptImage?: string;
-    reminderAt?: string;
+    shopName?: string | null;
+    receiptImage?: string | null;
+    reminderAt?: string | null;
+    nextDueDate?: string | null;
+    nextDueMileage?: number | null;
+    difficulty?: number | null;
   }) => fetchApi<MaintenanceLog>("/api/maintenance", { method: "POST", body: JSON.stringify(data) }),
+
+  updateMaintenance: (
+    id: string,
+    data: {
+      vehicleId?: string;
+      title?: string;
+      description?: string;
+      mileage?: number;
+      cost?: number | null;
+      category?: string;
+      performedAt?: string;
+      shopName?: string | null;
+      receiptImage?: string | null;
+      reminderAt?: string | null;
+      nextDueDate?: string | null;
+      nextDueMileage?: number | null;
+      difficulty?: number | null;
+    },
+  ) => fetchApi<MaintenanceLog>(`/api/maintenance/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  deleteMaintenance: (id: string) =>
+    fetchApi<{ ok: boolean }>(`/api/maintenance/${id}`, { method: "DELETE" }),
 
   getDiscoverNearYou: (lat: number, lng: number, radius = 50, limit = 20) =>
     fetchApi<Post[]>(`/api/discover/near-you?lat=${lat}&lng=${lng}&radius=${radius}&limit=${limit}`),
@@ -925,6 +1027,12 @@ export const api = {
       count: number;
     }>("/api/users/me/crew"),
 
+  getUserCrew: (username: string) =>
+    fetchApi<{
+      members: { userId: string; username: string; displayName: string; avatar: string }[];
+      count: number;
+    }>(`/api/users/${encodeURIComponent(username)}/crew`),
+
   addCrewMember: (username: string) =>
     fetchApi<{ members: { userId: string; username: string; displayName: string; avatar: string }[]; count: number }>(
       "/api/users/me/crew",
@@ -959,6 +1067,35 @@ export const api = {
 
   getListing: (id: string) =>
     fetchApi<MarketplaceListing & { bookmarked?: boolean; seller: User }>(`/api/marketplace/${id}`),
+
+  getCreatorLinks: (username?: string) =>
+    fetchApi<{ links: import("./types").CreatorLink[] }>(
+      username
+        ? `/api/creator-links?username=${encodeURIComponent(username)}`
+        : "/api/creator-links",
+    ),
+
+  createCreatorLink: (data: { title: string; url: string }) =>
+    fetchApi<import("./types").CreatorLink>("/api/creator-links", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateCreatorLink: (id: string, data: { title?: string; url?: string; sortOrder?: number }) =>
+    fetchApi<import("./types").CreatorLink>(`/api/creator-links/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteCreatorLink: (id: string) =>
+    fetchApi<{ ok: boolean }>(`/api/creator-links/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  getSimilarListings: (opts: { similarTo?: string; tags?: string[] }) => {
+    const q = opts.similarTo
+      ? `similarTo=${encodeURIComponent(opts.similarTo)}`
+      : `tags=${encodeURIComponent((opts.tags ?? []).join(","))}`;
+    return fetchApi<MarketplaceListing[]>(`/api/marketplace?${q}`);
+  },
 
   getPostsByTag: (tag: string) =>
     fetchApi<{ tag: string; posts: Post[]; trending: { tag: string; count: number }[] }>(
@@ -1070,6 +1207,18 @@ export const api = {
       body: JSON.stringify({ vehicleId, slideIndex }),
     }),
 
-  updateMod: (id: string, data: { marketplaceAlert?: boolean }) =>
-    fetchApi<unknown>(`/api/mods/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  updateMod: (
+    id: string,
+    data: {
+      marketplaceAlert?: boolean;
+      status?: "planned" | "installed" | "removed";
+      name?: string;
+      category?: string;
+      notes?: string | null;
+      estimatedCost?: number | null;
+    },
+  ) => fetchApi<unknown>(`/api/mods/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  deleteBuildLog: (id: string) =>
+    fetchApi<{ success: boolean }>(`/api/build-logs/${id}`, { method: "DELETE" }),
 };

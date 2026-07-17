@@ -1,6 +1,8 @@
 import { requireAuth } from "@/lib/api-helpers";
 import { getOrCreateSettings } from "@/lib/social";
+import { serializeUserSettings } from "@/lib/settings-serialize";
 import { prisma } from "@/lib/prisma";
+import { isProActive } from "@/lib/platform";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -19,10 +21,25 @@ export async function GET() {
       avatar: true,
       coverImage: true,
       usernameChangedAt: true,
+      isPro: true,
+      proExpiresAt: true,
+      garageSlug: true,
+      primaryVehicleId: true,
+      verifiedSeller: true,
+      isVerifiedShop: true,
     },
   });
 
-  return NextResponse.json({ settings, profile: user });
+  return NextResponse.json({
+    settings: serializeUserSettings(settings),
+    profile: user
+      ? {
+          ...user,
+          isPro: isProActive(user),
+          proExpiresAt: user.proExpiresAt?.toISOString() ?? null,
+        }
+      : null,
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -64,12 +81,59 @@ export async function PATCH(request: Request) {
       }
     }
 
-    if (settings) {
+    if (settings && typeof settings === "object" && !Array.isArray(settings)) {
       await getOrCreateSettings(session!.user.id);
-      await prisma.userSettings.update({
-        where: { userId: session!.user.id },
-        data: settings,
-      });
+
+      // Allowlist only — never pass raw client objects into Prisma (blocks nested relation writes).
+      const BOOL_KEYS = [
+        "emailNotifications",
+        "pushNotifications",
+        "activityAlerts",
+        "messageAlerts",
+        "meetReminders",
+        "marketplaceAlerts",
+        "weeklyDigest",
+        "showLocation",
+        "showGarage",
+        "alwaysWatermarkExports",
+        "alwaysBlurPlates",
+      ] as const;
+      const STRING_KEYS = [
+        "quietHoursStart",
+        "quietHoursEnd",
+        "theme",
+      ] as const;
+      const PROFILE_VISIBILITY = new Set(["public", "followers", "private"]);
+      const ALLOW_MESSAGES = new Set(["everyone", "following", "none"]);
+
+      const data: Record<string, unknown> = {};
+      for (const key of BOOL_KEYS) {
+        if (typeof settings[key] === "boolean") data[key] = settings[key];
+      }
+      for (const key of STRING_KEYS) {
+        if (typeof settings[key] === "string") data[key] = settings[key].slice(0, 80);
+      }
+      if (typeof settings.profileVisibility === "string" && PROFILE_VISIBILITY.has(settings.profileVisibility)) {
+        data.profileVisibility = settings.profileVisibility;
+      }
+      if (typeof settings.allowMessages === "string" && ALLOW_MESSAGES.has(settings.allowMessages)) {
+        data.allowMessages = settings.allowMessages;
+      }
+      if (typeof settings.nearYouRadius === "number" && Number.isFinite(settings.nearYouRadius)) {
+        data.nearYouRadius = Math.min(500, Math.max(1, Math.round(settings.nearYouRadius)));
+      }
+      if (Array.isArray(settings.sceneTags)) {
+        data.sceneTags = JSON.stringify(
+          settings.sceneTags.filter((t): t is string => typeof t === "string").slice(0, 40)
+        );
+      }
+
+      if (Object.keys(data).length > 0) {
+        await prisma.userSettings.update({
+          where: { userId: session!.user.id },
+          data,
+        });
+      }
     }
 
     return NextResponse.json({ ok: true });

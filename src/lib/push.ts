@@ -9,7 +9,7 @@ async function getWebPush() {
   const webpush = await import("web-push");
   if (!webPushConfigured) {
     webpush.setVapidDetails(
-      process.env.VAPID_SUBJECT ?? "mailto:support@gearnet.app",
+      process.env.VAPID_SUBJECT ?? "mailto:kachurtaylor5@gmail.com",
       process.env.VAPID_PUBLIC_KEY,
       process.env.VAPID_PRIVATE_KEY
     );

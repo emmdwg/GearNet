@@ -2,6 +2,7 @@ import { getConversations } from "@/lib/db";
 import { isBlocked } from "@/lib/blocking";
 import { canSendMessage } from "@/lib/privacy";
 import { requireAuth } from "@/lib/api-helpers";
+import { sendConversationMessage, getOrCreateConversation } from "@/lib/marketplace-chat";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -9,8 +10,13 @@ export async function GET() {
   const { session, error } = await requireAuth();
   if (error) return error;
 
-  const conversations = await getConversations(session!.user.id);
-  return NextResponse.json(conversations);
+  try {
+    const conversations = await getConversations(session!.user.id);
+    return NextResponse.json(conversations);
+  } catch (err) {
+    console.error("GET /api/conversations failed:", err);
+    return NextResponse.json({ error: "Failed to load conversations" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -18,7 +24,7 @@ export async function POST(request: Request) {
   if (error) return error;
 
   try {
-    const { participantId } = await request.json();
+    const { participantId, initialMessage } = await request.json();
     if (!participantId) {
       return NextResponse.json({ error: "participantId required" }, { status: 400 });
     }
@@ -31,24 +37,21 @@ export async function POST(request: Request) {
 
     const existing = await prisma.conversation.findFirst({
       where: {
+        type: "dm",
         AND: [
           { participants: { some: { userId: session!.user.id } } },
           { participants: { some: { userId: participantId } } },
         ],
+        participants: { every: { userId: { in: [session!.user.id, participantId] } } },
       },
     });
 
-    if (existing) return NextResponse.json(existing);
+    const conversation = await getOrCreateConversation(session!.user.id, participantId);
+    if (typeof initialMessage === "string" && initialMessage.trim()) {
+      await sendConversationMessage(conversation.id, session!.user.id, initialMessage.trim());
+    }
 
-    const conversation = await prisma.conversation.create({
-      data: {
-        participants: {
-          create: [{ userId: session!.user.id }, { userId: participantId }],
-        },
-      },
-    });
-
-    return NextResponse.json(conversation, { status: 201 });
+    return NextResponse.json(conversation, { status: existing ? 200 : 201 });
   } catch {
     return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
   }

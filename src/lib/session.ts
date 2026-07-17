@@ -9,6 +9,7 @@ export type AppSessionUser = {
   name: string;
   username: string;
   image: string;
+  location?: string;
 };
 
 export type AppSession = {
@@ -28,6 +29,7 @@ async function profileFromAuthUser(authUserId: string): Promise<AppSession | nul
       image:
         profile.avatar ??
         "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop",
+      location: profile.location ?? "",
     },
   };
 }

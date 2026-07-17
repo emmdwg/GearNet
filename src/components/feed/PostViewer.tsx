@@ -2,13 +2,13 @@
 
 import { CommentThread, type CommentItem } from "@/components/social/CommentThread";
 import { RichText } from "@/components/ui/RichText";
-import { ImageCarousel } from "@/components/ui/ImageCarousel";
+import { PostMedia } from "@/components/ui/PostMedia";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { BookmarkButton } from "@/components/ui/BookmarkButton";
 import { useAuth } from "@/lib/auth-context";
 import { formatRelativeDate } from "@/lib/utils";
-import { Heart, MessageSquare, Send, X } from "lucide-react";
+import { Flame, MessageSquare, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -16,6 +16,15 @@ type PostDetail = {
   id: string;
   image: string;
   images: string[];
+  mediaType?: string;
+  videoUrl?: string;
+  videoDuration?: number;
+  videoPoster?: string;
+  videoChapters?: { timeSec: number; label: string }[];
+  postType?: string;
+  beforeImage?: string | null;
+  afterImage?: string | null;
+  audioUrl?: string | null;
   caption: string;
   tags: string[];
   likes: number;
@@ -61,70 +70,121 @@ export function PostViewer({ postId, onClose }: { postId: string; onClose: () =>
   }, [onClose]);
 
   async function toggleLike() {
-    const res = await fetch("/api/likes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType: "post", targetId: postId }),
-    });
-    if (!res.ok) return;
-    const result = await res.json();
-    setLiked(result.liked);
-    setLikes((n) => (result.liked ? n + 1 : Math.max(0, n - 1)));
+    if (!user) {
+      window.location.href = `/auth/signin?callbackUrl=/explore?post=${postId}`;
+      return;
+    }
+    setError("");
+    try {
+      const res = await fetch("/api/likes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetType: "post", targetId: postId }),
+      });
+      if (!res.ok) {
+        setError("Couldn’t update like. Try again.");
+        return;
+      }
+      const result = await res.json();
+      setLiked(result.liked);
+      setLikes((n) => (result.liked ? n + 1 : Math.max(0, n - 1)));
+    } catch {
+      setError("Couldn’t update like. Try again.");
+    }
   }
 
   async function submitComment() {
     if (!comment.trim()) return;
-    const res = await fetch("/api/comments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType: "post", targetId: postId, content: comment.trim() }),
-    });
-    if (!res.ok) return;
-    const created = await res.json();
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            commentList: [...prev.commentList, created],
-            comments: prev.comments + 1,
-          }
-        : prev
-    );
-    setComment("");
+    if (!user) {
+      window.location.href = `/auth/signin?callbackUrl=/explore?post=${postId}`;
+      return;
+    }
+    setError("");
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetType: "post", targetId: postId, content: comment.trim() }),
+      });
+      if (!res.ok) {
+        setError("Couldn’t post comment. Try again.");
+        return;
+      }
+      const created = await res.json();
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              commentList: [...prev.commentList, created],
+              comments: prev.comments + 1,
+            }
+          : prev
+      );
+      setComment("");
+    } catch {
+      setError("Couldn’t post comment. Try again.");
+    }
   }
 
-  async function submitReply(parentId: string, content: string) {
-    const res = await fetch("/api/comments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetType: "post", targetId: postId, content, parentId }),
-    });
-    if (!res.ok) return;
-    // Reload comments for threaded structure
-    const listRes = await fetch(`/api/comments?targetType=post&targetId=${postId}`);
-    if (listRes.ok) {
-      const list = await listRes.json();
-      setData((prev) => (prev ? { ...prev, commentList: list, comments: prev.comments + 1 } : prev));
+  async function submitReply(parentId: string, content: string, quotedCommentId?: string) {
+    if (!user) {
+      window.location.href = `/auth/signin?callbackUrl=/explore?post=${postId}`;
+      return;
+    }
+    setError("");
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetType: "post", targetId: postId, content, parentId, quotedCommentId }),
+      });
+      if (!res.ok) {
+        setError("Couldn’t post reply. Try again.");
+        return;
+      }
+      // Reload comments for threaded structure
+      const listRes = await fetch(`/api/comments?targetType=post&targetId=${postId}`);
+      if (listRes.ok) {
+        const list = await listRes.json();
+        setData((prev) => (prev ? { ...prev, commentList: list, comments: prev.comments + 1 } : prev));
+      }
+    } catch {
+      setError("Couldn’t post reply. Try again.");
     }
   }
 
   async function likeComment(commentId: string) {
+    if (!user) {
+      window.location.href = `/auth/signin?callbackUrl=/explore?post=${postId}`;
+      return { liked: false };
+    }
     const res = await fetch("/api/likes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ targetType: "comment", targetId: commentId }),
     });
-    if (!res.ok) return { liked: false };
+    if (!res.ok) {
+      setError("Couldn’t update comment like.");
+      return { liked: false };
+    }
     return res.json();
   }
 
   async function deleteComment(commentId: string) {
-    const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
-    if (!res.ok) return;
-    const listRes = await fetch(`/api/comments?targetType=post&targetId=${postId}`);
-    if (listRes.ok) {
-      const list = await listRes.json();
-      setData((prev) => (prev ? { ...prev, commentList: list } : prev));
+    setError("");
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
+      if (!res.ok) {
+        setError("Couldn’t delete comment.");
+        return;
+      }
+      const listRes = await fetch(`/api/comments?targetType=post&targetId=${postId}`);
+      if (listRes.ok) {
+        const list = await listRes.json();
+        setData((prev) => (prev ? { ...prev, commentList: list } : prev));
+      }
+    } catch {
+      setError("Couldn’t delete comment.");
     }
   }
 
@@ -148,7 +208,24 @@ export function PostViewer({ postId, onClose }: { postId: string; onClose: () =>
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative h-[50vh] min-h-[320px] bg-black lg:h-full lg:min-h-[480px]">
-          <ImageCarousel images={images} alt={data.caption} variant="viewer" className="h-full" />
+          <PostMedia
+            post={{
+              image: data.image,
+              images,
+              caption: data.caption,
+              mediaType: data.mediaType,
+              videoUrl: data.videoUrl,
+              videoDuration: data.videoDuration,
+              videoPoster: data.videoPoster,
+              videoChapters: data.videoChapters,
+              postType: data.postType,
+              beforeImage: data.beforeImage,
+              afterImage: data.afterImage,
+              audioUrl: data.audioUrl,
+            }}
+            variant="viewer"
+            className="h-full"
+          />
         </div>
 
         <div className="flex max-h-[55vh] flex-col sm:max-h-[80vh]">
@@ -191,9 +268,10 @@ export function PostViewer({ postId, onClose }: { postId: string; onClose: () =>
           </div>
 
           <div className="border-t border-zinc-800 p-4">
+            {error ? <p className="mb-2 text-xs text-red-400">{error}</p> : null}
             <div className="mb-3 flex items-center gap-4 text-sm text-zinc-400">
               <button type="button" onClick={toggleLike} className={`flex items-center gap-1 ${liked ? "text-red-400" : ""}`}>
-                <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} /> {likes}
+                <Flame className={`h-4 w-4 ${liked ? "fill-current text-amber-500" : ""}`} /> {likes}
               </button>
               <span className="flex items-center gap-1">
                 <MessageSquare className="h-4 w-4" /> {data.comments}

@@ -35,12 +35,22 @@ export type Vehicle = {
   color: string;
   image: string;
   vin?: string;
+  story?: string;
   projectStatus?: string;
   buildProgress?: number;
+  installHours?: number;
+  waitingOnParts?: boolean;
+  waitingOnPartsNote?: string;
   forSale?: boolean;
   mods: Modification[];
   buildLogs: BuildLog[];
   fluidNotes?: string;
+  beforeAfterPosts?: Array<{
+    id: string;
+    beforeImage: string;
+    afterImage: string;
+    caption: string;
+  }>;
 };
 
 export type Modification = {
@@ -95,6 +105,8 @@ export type Post = {
   afterImage?: string | null;
   inspiredByPostId?: string | null;
   collaborators?: string[];
+  /** Optional resolved profiles for collaborator usernames (avatars for Build crew stack). */
+  collaboratorUsers?: Array<{ username: string; displayName?: string; avatar?: string }>;
   audioUrl?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -107,7 +119,11 @@ export type Post = {
   vehicleRef?: string;
   dynoHighlight?: string;
   forSale?: boolean;
-  status?: "draft" | "published";
+  status?: "draft" | "published" | "scheduled";
+  scheduledAt?: string | null;
+  isSponsored?: boolean;
+  sponsorName?: string | null;
+  sponsorUrl?: string | null;
   reactionCounts?: Partial<Record<"like" | "fire" | "wrench" | "want" | "clean", number>>;
   userReaction?: "like" | "fire" | "wrench" | "want" | "clean" | null;
   distanceKm?: number;
@@ -173,6 +189,13 @@ export type FollowStats = {
   followRequestPending?: boolean;
 };
 
+export type CreatorLink = {
+  id: string;
+  title: string;
+  url: string;
+  sortOrder: number;
+};
+
 export type ProfileView = {
   access: "owner" | "full" | "limited";
   canViewPosts: boolean;
@@ -181,6 +204,7 @@ export type ProfileView = {
   canMessage: boolean;
   isFollowing: boolean;
   isPrivate: boolean;
+  showGarage?: boolean;
 };
 
 export type Notification = {
@@ -246,7 +270,7 @@ export type Event = {
   time: string;
   organizerId: string;
   clubId?: string | null;
-  club?: { id: string; slug: string; name: string; image?: string | null } | null;
+  club?: { id: string; slug: string; name: string; image?: string | null; isPublic?: boolean } | null;
   attendeeCount: number;
   maxAttendees?: number | null;
   tags: string[];
@@ -261,6 +285,7 @@ export type Event = {
   ticketPrice?: number | null;
   ticketUrl?: string | null;
   organizer?: { id: string; username: string; displayName: string; avatar: string };
+  viewerRsvpStatus?: import("./rsvp-status").RsvpStatus | null;
 };
 
 export type EventCheckIn = {
@@ -334,6 +359,7 @@ export type Club = {
   role?: string | null;
   joinRequestPending?: boolean;
   pendingRequestCount?: number;
+  access?: "full" | "preview";
 };
 
 export type ClubJoinRequest = {
@@ -448,12 +474,13 @@ export type Message = {
   senderId: string;
   content: string;
   sentAt: string;
+  sender?: { id: string; username: string; displayName: string; avatar: string };
 };
 
 export type Conversation = {
   id: string;
   type?: string;
-  participantIds: string[];
+  participantIds?: string[];
   participantCount?: number;
   lastMessage: string;
   lastMessageAt: string;
@@ -611,6 +638,7 @@ export type ServiceSuggestion = {
   dueByMileage?: number;
   dueByDate?: string;
   urgency: "due" | "due_soon" | "overdue";
+  vehicleId?: string;
 };
 
 export type ManualGuideNote = {

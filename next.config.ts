@@ -10,7 +10,14 @@ const allowedOrigin =
   process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: [
+    "import-in-the-middle",
+    "require-in-the-middle",
+    "@sentry/nextjs",
+  ],
   images: {
+    qualities: [90, 100],
+    formats: ["image/webp"],
     remotePatterns: [
       {
         protocol: "https",
@@ -37,6 +44,18 @@ const nextConfig: NextConfig = {
           { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization" },
           { key: "Vary", value: "Origin" },
         ],
+      },
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+      {
+        source: "/manifest.webmanifest",
+        headers: [{ key: "Content-Type", value: "application/manifest+json; charset=utf-8" }],
       },
     ];
   },

@@ -12,7 +12,7 @@ function appBaseUrl() {
 
 export async function sendNotificationEmail(payload: EmailPayload) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM ?? "GearNet <notifications@gearnet.app>";
+  const from = process.env.EMAIL_FROM ?? "GearNet <notifications@gearnetapp.com>";
 
   if (!apiKey) return;
 

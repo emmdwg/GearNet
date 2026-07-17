@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PostMedia } from "../components/media/PostMedia";
 import { CreatePostForm } from "../components/forms/CreateForms";
 import { CommentThread } from "../components/social/CommentThread";
 import { Avatar } from "../components/ui/Avatar";
@@ -122,12 +123,12 @@ export function PostViewerScreen() {
     }
   }
 
-  async function submitReply(parentId: string, content: string) {
+  async function submitReply(parentId: string, content: string, quotedCommentId?: string) {
     if (!user) {
       navigation.navigate("SignIn");
       return;
     }
-    await api.addComment("post", postId, content, parentId);
+    await api.addComment("post", postId, content, parentId, quotedCommentId);
     const commentList = await api.getComments("post", postId);
     setData((prev) => (prev ? { ...prev, commentList, comments: (prev.comments ?? 0) + 1 } : prev));
   }
@@ -218,47 +219,7 @@ export function PostViewerScreen() {
       </View>
 
       <View style={styles.imageSection}>
-        {images.length > 1 ? (
-          <>
-            <FlatList
-              data={images}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(uri, i) => `${uri}-${i}`}
-              onScroll={onImageScroll}
-              scrollEventThrottle={16}
-              getItemLayout={(_, index) => ({
-                length: screenWidth,
-                offset: screenWidth * index,
-                index,
-              })}
-              renderItem={({ item }) => (
-                <View style={[styles.imageSlide, imageSlideStyle]}>
-                  <Image source={{ uri: item }} style={styles.image} resizeMode="contain" />
-                </View>
-              )}
-            />
-            <View style={styles.dots}>
-              {images.map((_, i) => (
-                <View key={i} style={[styles.dot, i === page && styles.dotActive]} />
-              ))}
-            </View>
-            <View style={styles.counter}>
-              <Text style={styles.counterText}>
-                {page + 1}/{images.length}
-              </Text>
-            </View>
-          </>
-        ) : images[0] ? (
-          <View style={[styles.imageSlide, imageSlideStyle]}>
-            <Image source={{ uri: images[0] }} style={styles.image} resizeMode="contain" />
-          </View>
-        ) : (
-          <View style={[styles.imageSlide, imageSlideStyle, styles.imageMissing]}>
-            <Text style={styles.imageMissingText}>Photo unavailable</Text>
-          </View>
-        )}
+        <PostMedia post={data} variant="viewer" width={screenWidth} />
       </View>
 
       <View style={styles.captionWrap}>
@@ -293,7 +254,7 @@ export function PostViewerScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
         <View style={styles.stats}>
           <Pressable style={styles.stat} onPress={toggleLike}>
-            <Ionicons name={liked ? "heart" : "heart-outline"} size={18} color={liked ? colors.danger : colors.textDim} />
+            <Ionicons name={liked ? "flame" : "flame-outline"} size={18} color={liked ? colors.accent : colors.textDim} />
             <Text style={[styles.statText, liked && { color: colors.danger }]}>{likes}</Text>
           </Pressable>
           <View style={styles.stat}>

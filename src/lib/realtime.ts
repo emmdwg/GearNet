@@ -1,4 +1,4 @@
-import { broadcastMessage as broadcastPusherMessage, isPusherConfigured } from "@/lib/pusher";
+import { conversationChannel, getPusherServer, isPusherConfigured } from "@/lib/pusher";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export function isRealtimeConfigured() {
@@ -13,7 +13,7 @@ export function conversationChannelId(conversationId: string) {
   return `conversation:${conversationId}`;
 }
 
-export async function broadcastChatMessage(conversationId: string, message: unknown) {
+async function broadcastToConversation(conversationId: string, event: string, payload: unknown) {
   if (isRealtimeConfigured()) {
     const supabase = createAdminClient();
     const channel = supabase.channel(conversationChannelId(conversationId), {
@@ -30,8 +30,8 @@ export async function broadcastChatMessage(conversationId: string, message: unkn
         if (status === "SUBSCRIBED") {
           const result = await channel.send({
             type: "broadcast",
-            event: "new-message",
-            payload: message,
+            event,
+            payload,
           });
           clearTimeout(timeout);
           await supabase.removeChannel(channel);
@@ -47,6 +47,20 @@ export async function broadcastChatMessage(conversationId: string, message: unkn
   }
 
   if (isPusherConfigured()) {
-    await broadcastPusherMessage(conversationId, message);
+    const pusher = getPusherServer();
+    if (pusher) {
+      await pusher.trigger(conversationChannel(conversationId), event, payload);
+    }
   }
+}
+
+export async function broadcastChatMessage(conversationId: string, message: unknown) {
+  await broadcastToConversation(conversationId, "new-message", message);
+}
+
+export async function broadcastReadReceipt(
+  conversationId: string,
+  payload: { userId: string; readAt: string }
+) {
+  await broadcastToConversation(conversationId, "read-receipt", payload);
 }

@@ -24,6 +24,26 @@ export async function isBlocked(a: string, b: string): Promise<boolean> {
   return Boolean(block);
 }
 
+async function hideDmConversations(userA: string, userB: string) {
+  const shared = await prisma.conversation.findMany({
+    where: {
+      type: "dm",
+      AND: [
+        { participants: { some: { userId: userA } } },
+        { participants: { some: { userId: userB } } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (shared.length === 0) return;
+  await prisma.conversationParticipant.deleteMany({
+    where: {
+      conversationId: { in: shared.map((c) => c.id) },
+      userId: { in: [userA, userB] },
+    },
+  });
+}
+
 export async function blockUser(blockerId: string, blockedId: string) {
   if (blockerId === blockedId) throw new Error("You cannot block yourself");
 
@@ -42,6 +62,8 @@ export async function blockUser(blockerId: string, blockedId: string) {
       },
     }),
   ]);
+
+  await hideDmConversations(blockerId, blockedId);
 }
 
 export async function unblockUser(blockerId: string, blockedId: string) {
@@ -58,4 +80,16 @@ export async function reportUser(
   await prisma.userReport.create({
     data: { reporterId, reportedId, reason, details: details?.trim() || null },
   });
+}
+
+export async function reportContent(
+  reporterId: string,
+  ownerId: string,
+  targetType: "post" | "listing",
+  targetId: string,
+  reason: string,
+  details?: string,
+) {
+  const payload = JSON.stringify({ targetType, targetId, note: details?.trim() || null });
+  await reportUser(reporterId, ownerId, reason, payload);
 }
