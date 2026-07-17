@@ -1,16 +1,21 @@
 @import "tailwindcss";
 
 /*
-  GearNet brand — black + amber (classic).
+  GearNet brand — sharper dark + amber.
 */
 :root {
-  --background: #09090b;
+  --background: #0c0c0f;
   --foreground: #fafafa;
   --accent: #f59e0b;
   --accent-strong: #d97706;
-  --accent-soft: rgba(245, 158, 11, 0.14);
-  --card: #18181b;
-  --border: #27272a;
+  --accent-soft: rgba(245, 158, 11, 0.1);
+  --card: #141418;
+  --border: #2a2a30;
+  /* Mobile bottom nav: row height + home-indicator / gesture inset */
+  --mobile-nav-h: 3.75rem;
+  --mobile-nav-total: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html.light {
@@ -41,20 +46,18 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 158, 11, 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(245, 158, 11, 0.04), transparent);
+  background-image: radial-gradient(ellipse 70% 40% at 50% -25%, rgba(245, 158, 11, 0.05), transparent);
 }
 
 .glass-card {
-  border: 1px solid rgba(63, 63, 70, 0.8);
-  background: rgba(24, 24, 27, 0.72);
-  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  backdrop-filter: blur(8px);
 }
 
 .section-card {
-  border: 1px solid rgb(39 39 42);
-  background: rgba(24, 24, 27, 0.5);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 80%, transparent);
   border-radius: 1rem;
   padding: 1.25rem;
 }

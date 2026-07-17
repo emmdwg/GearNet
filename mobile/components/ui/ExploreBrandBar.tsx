@@ -1,34 +1,92 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/auth";
+import { useScrollChrome } from "../../lib/scroll-chrome";
 import { colors, spacing } from "../../lib/theme";
 import { Avatar } from "./Avatar";
 
 type Props = {
   onProfilePress?: () => void;
   onActivityPress?: () => void;
+  onClubsPress?: () => void;
+  onBenchPress?: () => void;
   onSettingsPress?: () => void;
   onSearchPress?: () => void;
   onSavedPress?: () => void;
+  onCollectionsPress?: () => void;
   rightAction?: React.ReactNode;
   unreadCount?: number;
 };
 
+function HeaderIcon({
+  label,
+  onPress,
+  children,
+}: {
+  label: string;
+  onPress?: () => void;
+  children: React.ReactNode;
+}) {
+  if (!onPress) return null;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityLabel={label}
+      hitSlop={8}
+      style={styles.iconBtn}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
 export function ExploreBrandBar({
   onProfilePress,
   onActivityPress,
+  onClubsPress,
+  onBenchPress,
   onSettingsPress,
   onSearchPress,
   onSavedPress,
+  onCollectionsPress,
   rightAction,
   unreadCount = 0,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { progress } = useScrollChrome();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        { paddingTop: insets.top + spacing.sm },
+        {
+          transform: [
+            {
+              translateY: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -8],
+              }),
+            },
+          ],
+          opacity: progress.interpolate({
+            inputRange: [0, 0.55, 1],
+            outputRange: [1, 0.35, 0],
+          }),
+          maxHeight: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [120, 0],
+          }),
+          overflow: "hidden" as const,
+          borderBottomWidth: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 0],
+          }),
+        },
+      ]}
+    >
       <View style={styles.row}>
         <View style={styles.logoWrap}>
           <View style={styles.logoIcon}>
@@ -40,18 +98,28 @@ export function ExploreBrandBar({
           </View>
         </View>
         <View style={styles.actions}>
-          {onSearchPress ? (
-            <Pressable onPress={onSearchPress} accessibilityLabel="Search">
-              <Ionicons name="search-outline" size={22} color={colors.textDim} />
-            </Pressable>
-          ) : null}
-          {onSavedPress ? (
-            <Pressable onPress={onSavedPress} accessibilityLabel="Saved">
-              <Ionicons name="bookmark-outline" size={22} color={colors.textDim} />
-            </Pressable>
-          ) : null}
+          <HeaderIcon label="Search" onPress={onSearchPress}>
+            <Ionicons name="search-outline" size={22} color={colors.textDim} />
+          </HeaderIcon>
+          <HeaderIcon label="Collections" onPress={onCollectionsPress}>
+            <Ionicons name="folder-open-outline" size={22} color={colors.textDim} />
+          </HeaderIcon>
+          <HeaderIcon label="Saved" onPress={onSavedPress}>
+            <Ionicons name="bookmark-outline" size={22} color={colors.textDim} />
+          </HeaderIcon>
+          <HeaderIcon label="Service Bench" onPress={onBenchPress}>
+            <Ionicons name="construct-outline" size={22} color={colors.textDim} />
+          </HeaderIcon>
+          <HeaderIcon label="Clubs" onPress={onClubsPress}>
+            <Ionicons name="people-outline" size={22} color={colors.textDim} />
+          </HeaderIcon>
           {onActivityPress ? (
-            <Pressable onPress={onActivityPress} accessibilityLabel="Activity" style={styles.bell}>
+            <Pressable
+              onPress={onActivityPress}
+              accessibilityLabel="Activity"
+              hitSlop={8}
+              style={[styles.iconBtn, styles.bell]}
+            >
               <Ionicons name="notifications-outline" size={22} color={colors.textDim} />
               {unreadCount > 0 ? (
                 <View style={styles.badge}>
@@ -60,13 +128,16 @@ export function ExploreBrandBar({
               ) : null}
             </Pressable>
           ) : null}
-          {onSettingsPress ? (
-            <Pressable onPress={onSettingsPress} accessibilityLabel="Settings">
-              <Ionicons name="settings-outline" size={22} color={colors.textDim} />
-            </Pressable>
-          ) : null}
+          <HeaderIcon label="Settings" onPress={onSettingsPress}>
+            <Ionicons name="settings-outline" size={22} color={colors.textDim} />
+          </HeaderIcon>
           {rightAction}
-          <Pressable onPress={onProfilePress} accessibilityLabel={user ? "Open profile" : "Sign in"}>
+          <Pressable
+            onPress={onProfilePress}
+            accessibilityLabel={user ? "Open profile" : "Sign in"}
+            hitSlop={8}
+            style={styles.iconBtn}
+          >
             {user ? (
               <Avatar src={user.avatar} alt={user.displayName} size="sm" ring />
             ) : (
@@ -77,7 +148,7 @@ export function ExploreBrandBar({
           </Pressable>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -86,7 +157,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.sm,
     backgroundColor: colors.background,
-    borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   row: {
@@ -104,13 +174,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brand: { fontSize: 16, fontWeight: "700", color: colors.text },
-  tagline: { fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: colors.textDim },
-  actions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  tagline: { fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: colors.textFaint },
+  actions: { flexDirection: "row", alignItems: "center", gap: 0 },
+  iconBtn: {
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   bell: { position: "relative" },
   badge: {
     position: "absolute",
-    top: -6,
-    right: -8,
+    top: 6,
+    right: 4,
     minWidth: 16,
     height: 16,
     borderRadius: 8,

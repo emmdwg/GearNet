@@ -144,13 +144,13 @@ export function ExploreContent({
       >
         <div
           className={cn(
-            "sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-xl transition-transform duration-200 ease-out supports-[backdrop-filter]:bg-zinc-950/75",
+            "sticky top-0 z-30 border-b border-border bg-background transition-transform duration-200 ease-out",
             chromeHidden && "max-lg:-translate-y-full max-lg:pointer-events-none",
           )}
         >
           <div className="flex items-center justify-between px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.25)]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500">
                 <Zap className="h-4 w-4 text-zinc-950" />
               </div>
               <p className="text-base font-bold tracking-tight text-white">GearNet</p>
@@ -167,7 +167,7 @@ export function ExploreContent({
               <button
                 type="button"
                 onClick={() => setPostOpen(true)}
-                className="ml-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-amber-500 text-zinc-950 shadow-[0_0_24px_rgba(245,158,11,0.2)] transition hover:bg-amber-400"
+                className="ml-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-amber-500 text-zinc-950 transition hover:bg-amber-400"
                 aria-label="Create post"
               >
                 <Plus className="h-4 w-4" />
@@ -198,7 +198,7 @@ export function ExploreContent({
           </div>
 
           <div className="px-4 pb-3 pt-2 max-lg:pt-0">
-            <div className="flex gap-1 rounded-full bg-zinc-900/70 p-1 ring-1 ring-zinc-800/80">
+            <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
               {(
                 [
                   ["forYou", "For You"],
@@ -211,9 +211,9 @@ export function ExploreContent({
                   type="button"
                   onClick={() => setFeedTab(id)}
                   className={cn(
-                    "flex-1 rounded-full px-2 py-2 text-xs font-semibold transition-all sm:text-sm",
+                    "flex-1 rounded-md px-2 py-2 text-xs font-semibold transition-colors sm:text-sm",
                     feedTab === id
-                      ? "bg-amber-500 text-zinc-950 shadow-sm"
+                      ? "bg-amber-500 text-zinc-950"
                       : "text-zinc-400 hover:text-zinc-200",
                   )}
                 >
@@ -225,21 +225,21 @@ export function ExploreContent({
         </div>
 
         <div className="space-y-5 px-4 py-5">
-          <div className="space-y-3">
+          <div className="space-y-2">
             <InstallAppBanner />
             <PushPromptBanner />
             <OnboardingChecklist />
-            <ScenePicker />
           </div>
 
           {feedTab === "forYou" ? (
             <div className="space-y-4">
               <PitUpdateStrip updates={pitUpdates} onAdd={() => setPitOpen(true)} onOpen={(id) => setPitViewerId(id)} />
+              <ScenePicker />
               <BuildStyleGrid posts={posts} activeScene={activeScene} onSceneSelect={setActiveScene} />
               <button
                 type="button"
                 onClick={() => setReelsOpen(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500/15 via-zinc-900 to-zinc-950 px-4 py-3 text-sm font-semibold text-amber-400 ring-1 ring-amber-500/25 transition hover:ring-amber-500/40"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-amber-400 transition hover:border-amber-500/40"
               >
                 Watch Build Reels
               </button>

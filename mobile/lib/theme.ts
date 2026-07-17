@@ -1,19 +1,19 @@
 import { DefaultTheme } from "@react-navigation/native";
 
-/** Black + amber — shared with web (globals.css). */
+/** Sharper dark + amber — shared with web (globals.css). */
 export const colors = {
-  background: "#09090b",
-  card: "#18181b",
-  cardMuted: "rgba(24, 24, 27, 0.5)",
-  border: "#27272a",
+  background: "#0c0c0f",
+  card: "#141418",
+  cardMuted: "rgba(20, 20, 24, 0.72)",
+  border: "#2a2a30",
   borderLight: "#3f3f46",
   text: "#fafafa",
   textMuted: "#a1a1aa",
-  textDim: "#71717a",
-  textFaint: "#52525b",
+  textDim: "#a1a1aa",
+  textFaint: "#71717a",
   accent: "#f59e0b",
   accentDark: "#d97706",
-  accentText: "#09090b",
+  accentText: "#0c0c0f",
   danger: "#f87171",
   success: "#4ade80",
 };
@@ -57,6 +57,10 @@ export const sharedStyles = {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  /** Extra scroll clearance so last CTAs clear home indicator / gesture bar. */
+  listContentPadding: {
+    paddingBottom: spacing.xl + spacing.lg,
   },
   title: {
     fontSize: 24,
