@@ -309,24 +309,28 @@ export const api = {
   deleteConversation: (conversationId: string) =>
     fetchApi<{ ok: boolean }>(`/api/conversations/${conversationId}`, { method: "DELETE" }),
   getMessages: (conversationId: string) =>
-    fetchApi<{ messages: import("./types").Message[]; otherLastReadAt: string | null }>(
-      `/api/conversations/${conversationId}/messages`
-    ),
+    fetchApi<{
+      messages: import("./types").Message[];
+      otherLastReadAt: string | null;
+      otherDeliveredAt?: string | null;
+    }>(`/api/conversations/${conversationId}/messages`),
 
   markConversationRead: (conversationId: string) =>
-    fetchApi<{ lastReadAt: string; otherLastReadAt: string | null }>(
+    fetchApi<{ lastReadAt: string; otherLastReadAt: string | null; otherDeliveredAt?: string | null }>(
       `/api/conversations/${conversationId}/read`,
       { method: "POST" }
     ),
 
   sendMessage: (conversationId: string, content: string, imageUrl?: string, audioUrl?: string) =>
-    fetchApi<import("./types").Message & { otherLastReadAt?: string | null }>(
-      `/api/conversations/${conversationId}/messages`,
-      {
-        method: "POST",
-        body: JSON.stringify({ content, imageUrl, audioUrl }),
+    fetchApi<
+      import("./types").Message & {
+        otherLastReadAt?: string | null;
+        otherDeliveredAt?: string | null;
       }
-    ),
+    >(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content, imageUrl, audioUrl }),
+    }),
 
   rsvpEvent: (eventId: string, rsvpStatus?: string) =>
     fetchApi<{ rsvped: boolean; rsvpStatus: string | null }>(`/api/events/${eventId}/rsvp`, {
@@ -438,6 +442,7 @@ export const api = {
       trim?: string;
       color?: string;
       image?: string;
+      images?: string[];
       vin?: string;
       projectStatus?: string;
       buildProgress?: number;
@@ -565,6 +570,7 @@ export const api = {
     trim?: string;
     color: string;
     image: string;
+    images?: string[];
     vin?: string;
     projectStatus?: string;
     buildProgress?: number;

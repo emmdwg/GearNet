@@ -39,6 +39,7 @@ export function ChatThreadScreen() {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherLastReadAt, setOtherLastReadAt] = useState<string | null>(null);
+  const [otherDeliveredAt, setOtherDeliveredAt] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -55,10 +56,12 @@ export function ChatThreadScreen() {
       const data = await api.getMessages(conversationId);
       setMessages(data.messages);
       setOtherLastReadAt(data.otherLastReadAt);
+      setOtherDeliveredAt(data.otherDeliveredAt ?? null);
       setLoadError("");
     } catch (e) {
       setMessages([]);
       setOtherLastReadAt(null);
+      setOtherDeliveredAt(null);
       setLoadError(e instanceof Error ? e.message : "Could not load messages");
     }
   }, [conversationId]);
@@ -95,6 +98,7 @@ export function ChatThreadScreen() {
         if (nudge.senderId !== user?.id) {
           void api.markConversationRead(conversationId).then((data) => {
             setOtherLastReadAt(data.otherLastReadAt);
+            setOtherDeliveredAt(data.otherDeliveredAt ?? null);
           });
         }
       })
@@ -122,6 +126,9 @@ export function ChatThreadScreen() {
       setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
       if (message.otherLastReadAt !== undefined) {
         setOtherLastReadAt(message.otherLastReadAt ?? null);
+      }
+      if (message.otherDeliveredAt !== undefined) {
+        setOtherDeliveredAt(message.otherDeliveredAt ?? null);
       }
       setInput("");
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -202,8 +209,8 @@ export function ChatThreadScreen() {
     const last = messages[messages.length - 1];
     const lastIsMine = !last || last.senderId === user.id;
     if (sending && lastIsMine) return "Sending…" as const;
-    return getLatestOutgoingDeliveryStatus(messages, user.id, otherLastReadAt);
-  }, [messages, user?.id, otherLastReadAt, sending]);
+    return getLatestOutgoingDeliveryStatus(messages, user.id, otherLastReadAt, sending, otherDeliveredAt);
+  }, [messages, user?.id, otherLastReadAt, otherDeliveredAt, sending]);
 
   if (loading) return <LoadingState message="Loading chat..." />;
 

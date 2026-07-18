@@ -142,6 +142,7 @@ model Vehicle {
   trim          String?
   color         String?
   image         String?
+  images        String   @default("[]")
   vin           String?
   story         String?
   fluidNotes    String?
@@ -626,6 +627,7 @@ model ConversationParticipant {
   conversationId String
   userId         String
   lastReadAt     DateTime?
+  deliveredAt    DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)

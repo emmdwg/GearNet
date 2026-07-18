@@ -27,7 +27,7 @@ export async function POST(_request: Request, { params }: Params) {
 
   await prisma.conversationParticipant.update({
     where: { conversationId_userId: { conversationId: id, userId: session!.user.id } },
-    data: { lastReadAt: readAt },
+    data: { lastReadAt: readAt, deliveredAt: readAt },
   });
 
   try {
@@ -41,11 +41,12 @@ export async function POST(_request: Request, { params }: Params) {
 
   const other = await prisma.conversationParticipant.findFirst({
     where: { conversationId: id, userId: { not: session!.user.id } },
-    select: { lastReadAt: true },
+    select: { lastReadAt: true, deliveredAt: true },
   });
 
   return NextResponse.json({
     lastReadAt: readAt.toISOString(),
     otherLastReadAt: other?.lastReadAt?.toISOString() ?? null,
+    otherDeliveredAt: other?.deliveredAt?.toISOString() ?? null,
   });
 }

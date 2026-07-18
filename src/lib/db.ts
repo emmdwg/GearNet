@@ -1664,6 +1664,12 @@ function serializeVehicle(
     trim: vehicle.trim ?? undefined,
     color: vehicle.color ?? "",
     image: vehicle.image ?? "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&h=500&fit=crop",
+    images: serializeImagesField(
+      "images" in vehicle && typeof (vehicle as { images?: string }).images === "string"
+        ? (vehicle as { images: string }).images
+        : "[]",
+      vehicle.image ?? "",
+    ),
     vin: opts?.includeSensitive ? (vehicle.vin ?? undefined) : undefined,
     story: vehicle.story ?? undefined,
     projectStatus: vehicle.projectStatus ?? undefined,

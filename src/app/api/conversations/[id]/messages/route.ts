@@ -15,11 +15,20 @@ type Params = { params: Promise<{ id: string }> };
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_GROUP_NOTIFY = 40;
 
+async function markConversationDelivered(conversationId: string, userId: string) {
+  const deliveredAt = new Date();
+  await prisma.conversationParticipant.update({
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { deliveredAt },
+  });
+  return deliveredAt;
+}
+
 async function markConversationRead(conversationId: string, userId: string) {
   const readAt = new Date();
   await prisma.conversationParticipant.update({
     where: { conversationId_userId: { conversationId, userId } },
-    data: { lastReadAt: readAt },
+    data: { lastReadAt: readAt, deliveredAt: readAt },
   });
 
   try {
@@ -63,15 +72,17 @@ export async function GET(_request: Request, { params }: Params) {
     getConversationMessages(id),
     prisma.conversationParticipant.findFirst({
       where: { conversationId: id, userId: { not: session!.user.id } },
-      select: { lastReadAt: true },
+      select: { lastReadAt: true, deliveredAt: true },
     }),
   ]);
 
-  await markConversationRead(id, session!.user.id);
+  // Fetching marks messages delivered, not read (read is via POST /read / screen focus).
+  await markConversationDelivered(id, session!.user.id);
 
   return NextResponse.json({
     messages,
     otherLastReadAt: other?.lastReadAt?.toISOString() ?? null,
+    otherDeliveredAt: other?.deliveredAt?.toISOString() ?? null,
   });
 }
 
@@ -98,7 +109,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const otherParticipants = await prisma.conversationParticipant.findMany({
       where: { conversationId: id, userId: { not: session!.user.id } },
-      select: { userId: true, lastReadAt: true },
+      select: { userId: true, lastReadAt: true, deliveredAt: true },
     });
     const otherParticipant = !isGroup ? otherParticipants[0] : undefined;
     if (otherParticipant) {
@@ -184,6 +195,7 @@ export async function POST(request: Request, { params }: Params) {
         content: message.content,
         sentAt: message.sentAt.toISOString(),
         otherLastReadAt: otherParticipant?.lastReadAt?.toISOString() ?? null,
+        otherDeliveredAt: otherParticipant?.deliveredAt?.toISOString() ?? null,
       },
       { status: 201 }
     );

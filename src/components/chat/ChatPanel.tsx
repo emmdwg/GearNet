@@ -55,6 +55,7 @@ export function ChatPanel({ initialConversations, initialConversationId }: Props
   const [showThread, setShowThread] = useState(Boolean(initialConversationId));
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherLastReadAt, setOtherLastReadAt] = useState<string | null>(null);
+  const [otherDeliveredAt, setOtherDeliveredAt] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -116,11 +117,13 @@ export function ChatPanel({ initialConversations, initialConversationId }: Props
       if (!res.ok) {
         setMessages([]);
         setOtherLastReadAt(null);
+        setOtherDeliveredAt(null);
         setLoadError(data.error ?? "Could not load messages");
         return;
       }
       setMessages(Array.isArray(data) ? data : (data.messages ?? []));
       setOtherLastReadAt(Array.isArray(data) ? null : (data.otherLastReadAt ?? null));
+      setOtherDeliveredAt(Array.isArray(data) ? null : (data.otherDeliveredAt ?? null));
       setConversations((prev) =>
         prev.map((c) => (c.id === conversationId ? { ...c, unread: 0 } : c)),
       );
@@ -200,6 +203,7 @@ export function ChatPanel({ initialConversations, initialConversationId }: Props
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (data?.otherLastReadAt !== undefined) setOtherLastReadAt(data.otherLastReadAt);
+            if (data?.otherDeliveredAt !== undefined) setOtherDeliveredAt(data.otherDeliveredAt);
           })
           .catch(() => {});
       }
@@ -241,6 +245,9 @@ export function ChatPanel({ initialConversations, initialConversationId }: Props
         setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
         if (message.otherLastReadAt !== undefined) {
           setOtherLastReadAt(message.otherLastReadAt);
+        }
+        if (message.otherDeliveredAt !== undefined) {
+          setOtherDeliveredAt(message.otherDeliveredAt);
         }
         setConversations((prev) =>
           prev.map((c) =>
@@ -337,8 +344,8 @@ export function ChatPanel({ initialConversations, initialConversationId }: Props
     const last = messages[messages.length - 1];
     const lastIsMine = !last || last.senderId === userId;
     if (sending && lastIsMine) return "Sending…" as const;
-    return getLatestOutgoingDeliveryStatus(messages, userId, otherLastReadAt);
-  }, [messages, userId, otherLastReadAt, sending]);
+    return getLatestOutgoingDeliveryStatus(messages, userId, otherLastReadAt, sending, otherDeliveredAt);
+  }, [messages, userId, otherLastReadAt, otherDeliveredAt, sending]);
 
   function selectConversation(id: string) {
     setActiveId(id);
@@ -359,6 +366,7 @@ export function ChatPanel({ initialConversations, initialConversationId }: Props
         setShowThread(false);
         setMessages([]);
         setOtherLastReadAt(null);
+        setOtherDeliveredAt(null);
       }
     } catch {
       setSendError("Couldn’t delete chat. Try again.");

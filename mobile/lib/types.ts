@@ -34,6 +34,7 @@ export type Vehicle = {
   trim?: string;
   color: string;
   image: string;
+  images?: string[];
   vin?: string;
   story?: string;
   projectStatus?: string;
