@@ -1,206 +1,358 @@
-# GearNet — App Store upload guide
+# GearNet — App Store click-by-click guide
 
-Your Expo app is already wired for **EAS Build** + **EAS Submit**. Follow this checklist in order.
+Do these sections **in order**. GearNet’s Expo config is already set (`com.gearnet.app`, EAS project `e9ea28f1-9d31-446f-96bd-4a2baa3f8ec7`).
 
-## Already configured in this repo
+**Values you will fill in:**
 
-| Item | Value |
-|------|--------|
-| Bundle ID | `com.gearnet.app` |
-| Display name | GearNet |
-| Version / build | `1.0.0` / auto-increment via EAS (`appVersionSource: remote`) |
-| EAS project | `e9ea28f1-9d31-446f-96bd-4a2baa3f8ec7` (owner: `primetrigger`) |
-| Export compliance | Non-exempt encryption = **false** |
-| Account deletion | Settings → Delete account |
-| Privacy / Terms (web) | https://gearnetapp.com/privacy · https://gearnetapp.com/terms |
-| Production API | `https://gearnetapp.com` (set in `eas.json` production env) |
-| Build script | `npm run build:ios` |
-| Submit script | `npm run submit:ios` |
+| What | Where you get it | Where you put it |
+|------|------------------|------------------|
+| Team ID | developer.apple.com → Membership | `eas.json` → `appleTeamId` |
+| Asc App ID | App Store Connect → App Information → **Apple ID** | `eas.json` → `ascAppId` |
+| ASC API Key `.p8` | App Store Connect → Users and Access → Integrations | Keep private; EAS prompt or local path |
 
-## 1. Apple accounts (one-time)
+---
 
-1. Enroll in the [Apple Developer Program](https://developer.apple.com/programs/) ($99/year).
-2. Sign in to [App Store Connect](https://appstoreconnect.apple.com/).
-3. **Users and Access → Integrations → App Store Connect API** — create a key with **App Manager** access. Download the `.p8` once; note **Key ID** and **Issuer ID**.
-4. Find your **Team ID** at [developer.apple.com/account](https://developer.apple.com/account) → Membership.
+## Part A — Apple Developer Program (one-time, ~15–30 min if already paid)
 
-## 2. Create the app record in App Store Connect
+### A1. Enroll / confirm membership
 
-1. **My Apps → + → New App**
-2. Platforms: **iOS**
-3. Name: **GearNet** (must be unique on the store)
-4. Bundle ID: register `com.gearnet.app` if needed, then select it
-5. SKU: e.g. `gearnet-ios` (internal only)
-6. User Access: Full Access
+1. Open [https://developer.apple.com/programs/](https://developer.apple.com/programs/)
+2. Click **Enroll** (or **Account** if you already have one)
+3. Sign in with the Apple ID you want as the developer account
+4. If not enrolled: complete identity verification → pay the annual fee → wait for “You are enrolled” email
+5. Open [https://developer.apple.com/account](https://developer.apple.com/account)
+6. Left sidebar → click **Membership details** (wording may be **Membership**)
+7. Copy **Team ID** (10 characters, e.g. `AB12CD34EF`) → paste into a notes app for later
 
-After creation, open **App Information → General Information → Apple ID** (numeric). That is your `ascAppId`.
+### A2. Register the Bundle ID (Identifiers)
 
-Add both IDs to `mobile/eas.json` under `submit.production.ios` (EAS will also prompt if omitted):
+1. Still on [developer.apple.com/account](https://developer.apple.com/account)
+2. Left sidebar → **Certificates, Identifiers & Profiles**
+3. Left sidebar → **Identifiers**
+4. Top-left **+** (blue plus)
+5. Select **App IDs** → **Continue**
+6. Select **App** → **Continue**
+7. **Description:** `GearNet`
+8. **Bundle ID:** choose **Explicit**
+9. Enter: `com.gearnet.app`
+10. Capabilities (check if you use them):
+    - **Push Notifications** (you use expo-notifications)
+    - **Associated Domains** (you have `applinks:gearnetapp.com`)
+11. Click **Continue** → **Register**
+
+If `com.gearnet.app` already exists under your team, skip registration and note it.
+
+---
+
+## Part B — App Store Connect: create the app record
+
+### B1. Open App Store Connect
+
+1. Open [https://appstoreconnect.apple.com/](https://appstoreconnect.apple.com/)
+2. Sign in with the same Apple ID
+3. If prompted for a team, select your paid team
+4. Click **Apps** (or **My Apps**)
+
+### B2. New App
+
+1. Click the blue **+** near the top left
+2. Click **New App**
+3. Fill the modal:
+   - **Platforms:** check **iOS**
+   - **Name:** `GearNet` (must be unique on the App Store; if taken, try `GearNet Social` etc.)
+   - **Primary Language:** English (U.S.)
+   - **Bundle ID:** select `com.gearnet.app` (GearNet)
+   - **SKU:** `gearnet-ios` (internal only; never shown to users)
+   - **User Access:** **Full Access**
+4. Click **Create**
+
+### B3. Copy your Asc App ID (`ascAppId`)
+
+1. You should land on the app’s page
+2. Top tabs: make sure **App Store** is selected (not TestFlight)
+3. Left sidebar under **General** → click **App Information**
+4. Under **General Information**, find **Apple ID** (numeric, e.g. `6750123456`)
+5. Copy that number → notes app  
+   This is **`ascAppId`** for EAS (not the Bundle ID).
+
+### B4. Set privacy policy URL (App Information)
+
+1. Still on **App Information**
+2. Scroll to **App Store** / **Privacy Policy URL**
+3. Enter: `https://gearnetapp.com/privacy`
+4. Click **Save** (top right)
+
+### B5. Category
+
+1. Still on **App Information**
+2. **Primary Category** → **Social Networking**
+3. **Secondary Category** (optional) → **Lifestyle** or **Shopping**
+4. **Save**
+
+---
+
+## Part C — App Store Connect API key (for EAS Submit)
+
+### C1. Create the key
+
+1. App Store Connect top nav → click your name / **Users and Access**  
+   Direct: [https://appstoreconnect.apple.com/access/integrations/api](https://appstoreconnect.apple.com/access/integrations/api)
+2. Tab **Integrations** → **App Store Connect API**
+3. If asked, click **Request Access** / agree once
+4. Under **Team Keys** (or **Active**), click **Generate API Key** / **+**
+5. **Name:** `EAS Submit`
+6. **Access:** **App Manager**
+7. Click **Generate**
+8. Click **Download API Key** → saves `AuthKey_XXXXXXXXXX.p8`  
+   **You can only download this once.** Put it somewhere safe outside the repo (e.g. `~/Documents/apple/AuthKey_….p8`). Never commit it.
+9. On the same page, copy:
+   - **Issuer ID** (UUID at the top of the Integrations page)
+   - **Key ID** (shown next to the key name)
+
+### C2. (Optional) Put IDs in `eas.json` now
+
+On your computer, edit `mobile/eas.json` → `submit.production.ios`:
 
 ```json
-"submit": {
-  "production": {
-    "ios": {
-      "companyName": "GearNet",
-      "ascAppId": "1234567890",
-      "appleTeamId": "ABCD123456"
-    }
-  }
+"ios": {
+  "companyName": "GearNet",
+  "ascAppId": "PASTE_NUMERIC_APPLE_ID",
+  "appleTeamId": "PASTE_TEAM_ID"
 }
 ```
 
-Optional (recommended for CI / non-interactive submit): ASC API key fields `ascApiKeyPath`, `ascApiKeyId`, `ascApiKeyIssuerId` — see [Expo’s guide](https://docs.expo.dev/submit/ios/).
-## 3. App Store Connect listing (before review)
+You can leave API key paths out and let `eas submit` prompt, or add:
 
-Fill these in App Store Connect (not in git):
+```json
+"ascApiKeyPath": "/absolute/path/to/AuthKey_XXXXX.p8",
+"ascApiKeyId": "XXXXXXXXXX",
+"ascApiKeyIssuerId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
 
-### Required metadata
+---
 
-- **Subtitle** (30 chars) — e.g. `Drive. Build. Connect.`
-- **Description** — what GearNet is (garage, feed, meets, marketplace, chat)
-- **Keywords** — cars, garage, meets, automotive, …
-- **Support URL** — `https://gearnetapp.com` (or a dedicated support page)
-- **Marketing URL** (optional) — `https://gearnetapp.com`
-- **Privacy Policy URL** — `https://gearnetapp.com/privacy`
-- **Category** — Social Networking (primary); Lifestyle or Shopping as secondary if desired
+## Part D — Fill the version page (listing) before review
 
-### Screenshots (required)
+You can do most of this while the binary builds.
 
-Capture from a device or simulator after a production/preview build:
+### D1. Open the iOS version
 
-| Device class | Typical size |
-|--------------|--------------|
-| 6.7" (iPhone 15 Pro Max etc.) | 1290 × 2796 |
-| 6.5" (optional if 6.7" provided) | 1284 × 2778 |
-| iPad (if `supportsTablet: true`) | 2048 × 2732 |
+1. App Store Connect → **Apps** → **GearNet**
+2. Tab **App Store**
+3. Left sidebar under **iOS App** → click **1.0 Prepare for Submission** (or **+ Version** if needed)
+4. You are now on the version editor
 
-Show Explore, Garage, Meets, and Marketplace — real UI, not marketing mockups only.
+### D2. Screenshots
 
-### App Privacy (nutrition labels)
+1. In **Previews and Screenshots**, choose **iPhone 6.7" Display**
+2. Click the **+** / drag images
+3. Upload 3–10 PNGs of the real app (Explore, Garage, Meets, Marketplace)
+4. Because `supportsTablet: true`, also open **iPad Pro 12.9"** (or the required iPad size shown) and upload iPad screenshots  
+   — or later set `"supportsTablet": false` in `app.json` and rebuild if you don’t want iPad
 
-Declare data you collect. GearNet currently involves roughly:
+### D3. Text fields
 
-- Contact info (email)
-- User content (posts, photos, messages, listings)
-- Identifiers (user ID)
-- Location (meets / map pins — only if user grants permission)
-- Device ID / push tokens (notifications)
+Still on the version page, fill:
 
-Be accurate; match https://gearnetapp.com/privacy.
+| Field | Suggested value |
+|-------|-----------------|
+| Promotional Text | (optional) |
+| Description | Short pitch: garage profiles, explore feed, meets, marketplace, chat |
+| Keywords | `cars,garage,automotive,meets,builds,marketplace` (comma-separated, no spaces after commas is fine) |
+| Support URL | `https://gearnetapp.com` |
+| Marketing URL | `https://gearnetapp.com` |
+| Version | `1.0.0` (matches `app.json`) |
+| Copyright | `2026 Your Legal Name` |
 
-### Age rating
+Click **Save**.
 
-Complete the questionnaire. UGC + messaging typically lands **12+** (or higher if you allow mature content without strong filters).
+### D4. App Review Information (scroll down on same page)
 
-### App Review information
+1. **Sign-In Required:** turn **ON**
+2. **User name** / **Password:** create a real production account first (sign up on gearnetapp.com or in a TestFlight build), then paste those credentials
+3. **Contact:** your name, phone, email
+4. **Notes** (paste something like):
 
-- Contact name, phone, email
-- **Demo account** (required — app has login): create a stable reviewer account and put username/password here
-- Notes: mention location, photo library, mic (voice notes), and that marketplace is user-to-user
+```
+GearNet is a social network for car builders.
+Demo account is above.
+Permissions: Photos (posts/garage), Location when in use (meet map pins), Microphone (optional voice notes in chat), Notifications (optional).
+UGC: users can report and block from post menus and profiles.
+Marketplace is peer-to-peer; GearNet is not a party to transactions.
+Account deletion: Settings → Delete account.
+Privacy: https://gearnetapp.com/privacy
+```
 
-### Content rights / UGC
+5. **Save**
 
-You already have report + block flows. In review notes, point reviewers to report/block in profile and post menus.
+### D5. Age Rating
 
-## 4. Expo / EAS login (on your machine)
+1. Left sidebar → **App Information** (or the **Age Ratings** link on the version page — UI moves occasionally)
+2. Click **Edit** / **Age Rating** questionnaire
+3. Answer honestly for UGC, messaging, unrestricted web access if any
+4. Expect roughly **12+** for social + UGC
+5. **Save** / **Done**
+
+### D6. App Privacy (nutrition labels)
+
+1. Left sidebar → **App Privacy**
+2. Click **Get Started** or **Edit**
+3. Privacy Policy URL: `https://gearnetapp.com/privacy`
+4. Click through data types. For GearNet, typically declare **Yes, we collect data from this app**, including roughly:
+   - **Contact Info** → Email Address (Account Registration)
+   - **User Content** → Photos/Videos, Other User Content (posts, messages, listings)
+   - **Identifiers** → User ID
+   - **Location** → Coarse/Precise (App Functionality; only if permission granted)
+   - **Device ID** (if push) → Device ID
+5. For each type, mark whether it is linked to identity and used for tracking (**tracking = No** unless you use ATT ads/analytics cross-app)
+6. **Publish** / **Save**
+
+### D7. Pricing
+
+1. Left sidebar → **Pricing and Availability**
+2. **Price:** Free
+3. Availability: all countries you want (or All)
+4. **Save**
+
+---
+
+## Part E — Build the IPA with EAS (your computer)
+
+### E1. Terminal setup
 
 ```bash
-cd mobile
-npx eas-cli login          # Expo account that owns project (primetrigger)
+cd /path/to/GearNet/mobile
+npm install
+npx eas-cli login
+```
+
+1. Browser/device opens Expo login → sign in as **`primetrigger`** (project owner in `app.json`)
+2. Confirm:
+
+```bash
 npx eas-cli whoami
-npx eas-cli credentials    # optional: confirm Apple creds managed by EAS
 ```
 
-Store the ASC API key where EAS can read it (interactive prompt on first submit, or set in `eas.json` / secrets):
-
-- `ascApiKeyPath` → path to `AuthKey_XXXXX.p8`
-- `ascApiKeyId` → Key ID
-- `ascApiKeyIssuerId` → Issuer ID
-
-Never commit the `.p8` file.
-
-## 5. Build for App Store
+### E2. First production build
 
 ```bash
-cd mobile
 npm run build:ios
-# same as: EAS_NO_VCS=1 npx eas-cli build --platform ios --profile production
 ```
 
-- First iOS build: EAS will ask to manage certificates/profiles — choose **Let EAS handle it**.
-- Wait for the build to finish on [expo.dev](https://expo.dev). Download/install via TestFlight after submit, or use internal distribution for `preview`.
+When EAS asks (first time only):
 
-Optional internal test build (Ad Hoc / device):
+1. **Generate a new Apple Distribution Certificate?** → **Yes** / let EAS manage
+2. **Generate a new Provisioning Profile?** → **Yes**
+3. Log in with Apple ID if prompted → enter 2FA code
+4. Select your **Team** if asked
+5. Wait until the CLI prints a build URL
+
+### E3. Watch the build
+
+1. Open the printed `https://expo.dev/...` link  
+   Or: [https://expo.dev](https://expo.dev) → your account → **gearnet** → **Builds**
+2. Wait for status **Finished** (often 10–20 minutes)
+3. Do **not** download the IPA for normal flow — EAS Submit will use it
+
+---
+
+## Part F — Upload to App Store Connect (TestFlight)
+
+### F1. Submit from terminal
 
 ```bash
-npx eas-cli build --platform ios --profile preview
+cd /path/to/GearNet/mobile
+npm run submit:ios
 ```
 
-## 6. Upload to App Store Connect (TestFlight)
+When prompted:
+
+1. **Select a build** → choose the latest production iOS build (or it uses `--latest` behavior)
+2. Apple login / API key:
+   - Prefer: **App Store Connect API Key** → point to your `.p8`, paste Key ID + Issuer ID
+   - Or: Apple ID + [app-specific password](https://appleid.apple.com) (Account → Sign-In and Security → App-Specific Passwords)
+3. Confirm upload → wait for “submitted”
+
+### F2. Wait for processing in App Store Connect
+
+1. Open App Store Connect → **Apps** → **GearNet**
+2. Top tab → **TestFlight**
+3. Left → **iOS Builds**
+4. When the build appears with a yellow clock, wait until it turns ready (10–30 min)
+5. If Apple shows **Missing Compliance**:
+   - Click the build → **Provide Export Compliance Information**
+   - **Does your app use encryption?** → answer per your setup  
+     GearNet sets `ITSAppUsesNonExemptEncryption = false` → usually **No** / standard HTTPS only → **Save**
+
+### F3. Install on your iPhone (sanity check)
+
+1. On iPhone: install **TestFlight** from the App Store
+2. App Store Connect → TestFlight → **Internal Testing**
+3. Click **+** create group if needed → add your Apple ID as tester
+4. Enable the build for that group
+5. Open the TestFlight email/invite on the phone → **Install** GearNet
+6. Smoke-test: sign in, feed, garage, meet map permission, post photo, settings → delete account path visible
+
+---
+
+## Part G — Submit for App Review (go live queue)
+
+### G1. Attach the build to the version
+
+1. App Store Connect → **Apps** → **GearNet**
+2. Tab **App Store**
+3. Left → **1.0 Prepare for Submission**
+4. Section **Build** → click **+** / **Add Build**
+5. Select the processed TestFlight build → **Done**
+6. Confirm screenshots, description, review notes, demo account are filled
+7. Top right → **Add for Review** (or **Save** then **Add for Review**)
+
+### G2. Final confirmation
+
+1. Review the submission summary
+2. Click **Submit to App Review**
+3. Status becomes **Waiting for Review** → later **In Review** → **Pending Developer Release** or **Ready for Sale**
+
+### G3. After approval
+
+1. If you chose **Manually release this version**: open the version → **Release This Version**
+2. If **Automatically release**: it goes live when approved
+3. Check the public App Store listing on your phone
+
+---
+
+## Part H — If rejected
+
+1. App Store Connect → app → **Resolution Center** (or email from App Review)
+2. Read the guideline cite (e.g. 5.1.1 privacy, 1.2 UGC, 2.1 crash)
+3. Fix code/metadata → bump via new EAS build (`npm run build:ios` auto-increments) → `npm run submit:ios` → attach new build → **Reply** + **Submit for Review** again
+
+---
+
+## Command cheat sheet
 
 ```bash
 cd mobile
-npm run submit:ios
-# same as: EAS_NO_VCS=1 npx eas-cli submit --platform ios --profile production
-```
-
-Or submit a specific build:
-
-```bash
-npx eas-cli submit --platform ios --profile production --latest
-```
-
-Processing in App Store Connect usually takes 10–30 minutes. Then:
-
-1. **TestFlight** → add yourself / internal testers
-2. Fix crashes before external TestFlight or App Review
-
-## 7. Submit for App Review
-
-In App Store Connect:
-
-1. Select the processed build on the iOS version page
-2. Confirm Privacy Policy URL, age rating, pricing (Free)
-3. **Add for Review → Submit to App Review**
-
-Typical first review: a few days. Respond in Resolution Center if rejected.
-
-## Common rejection risks (GearNet-specific)
-
-| Risk | Status / action |
-|------|------------------|
-| Missing account deletion | Done — Settings |
-| Missing privacy policy URL | Use `https://gearnetapp.com/privacy` |
-| ATS `NSAllowsArbitraryLoads` | Removed for store builds; HTTPS API only |
-| Missing mic usage string | Set via `expo-av` plugin |
-| Incomplete UGC moderation | Report/block exist — describe in review notes |
-| Broken demo login | Seed a reviewer account on production |
-| Placeholder legal “starter template” notice | Have counsel review before public launch; reviewers may open the Privacy URL |
-| iPad screenshots | `supportsTablet: true` — provide iPad shots or set `supportsTablet` to `false` |
-
-## Quick command cheat sheet
-
-```bash
-cd mobile
-
-# Production IPA on EAS
-npm run build:ios
-
-# Upload latest production build to ASC / TestFlight
-npm run submit:ios
-
-# Check build status
+npx eas-cli login
+npm run build:ios      # Part E
+npm run submit:ios     # Part F
 npx eas-cli build:list --platform ios --limit 5
 ```
 
-## What you must do outside this repo
+One-shot build + submit (after credentials work):
 
-1. Pay / activate Apple Developer membership  
-2. Create the App Store Connect app + paste `ascAppId` / `appleTeamId` into `eas.json`  
-3. Create ASC API key (keep `.p8` private)  
-4. Write store copy + take screenshots  
-5. Fill App Privacy + age rating  
-6. Run `build:ios` then `submit:ios` from a machine logged into Expo  
-7. Submit for review in App Store Connect  
+```bash
+npx eas-cli build --platform ios --profile production --auto-submit
+```
 
-The binary upload itself is `npm run submit:ios` after a successful production build — everything else is Apple’s web UI and metadata.
+---
+
+## Already done in this repo
+
+- Bundle ID `com.gearnet.app`
+- EAS project + `build:ios` / `submit:ios` scripts
+- Production API `https://gearnetapp.com`
+- Account deletion in Settings
+- Mic permission string + `expo-av`
+- ATS arbitrary-loads removed for store builds
+- Privacy/Terms live at gearnetapp.com
