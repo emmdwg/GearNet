@@ -22,10 +22,10 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
         },
-        "NSLocalNetworkUsageDescription": "GearNet connects to your development computer on the local network to load data during testing."
+        "NSLocalNetworkUsageDescription": "GearNet uses the local network only when connecting to a development server during testing.",
+        "NSMicrophoneUsageDescription": "Allow GearNet to record voice notes in chat."
       },
       "associatedDomains": ["applinks:gearnetapp.com", "applinks:www.gearnetapp.com"]
     },
@@ -63,6 +63,12 @@
     },
     "plugins": [
       "expo-secure-store",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow GearNet to record voice notes in chat."
+        }
+      ],
       [
         "expo-notifications",
         {
