@@ -16,6 +16,8 @@ export type MapMarker = {
   description?: string;
   latitude: number;
   longitude: number;
-  type: "event" | "pin";
+  type: "event" | "pin" | "dyno" | "shop" | "convoy" | "parking";
   subtitle?: string;
+  dynoHp?: number | null;
+  color?: string;
 };

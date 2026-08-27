@@ -21,11 +21,24 @@ type EventData = {
   organizer?: { id: string; username: string; displayName: string; avatar: string };
 };
 
-export function EventCard({ event }: { event: EventData }) {
+export function EventCard({
+  event,
+  onMeetDay,
+  meetDayExpanded,
+  onSelect,
+}: {
+  event: EventData;
+  onMeetDay?: () => void;
+  meetDayExpanded?: boolean;
+  onSelect?: () => void;
+}) {
   const organizer = event.organizer;
 
   return (
-    <article className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50">
+    <article
+      className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50"
+      onClick={onSelect}
+    >
       <div className="relative aspect-[2/1] bg-zinc-800">
         <Image src={event.image} alt={event.title} fill className="object-cover" sizes="600px" />
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
@@ -72,6 +85,18 @@ export function EventCard({ event }: { event: EventData }) {
               className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 transition-colors hover:border-zinc-600 hover:text-white"
             />
             <RsvpButton eventId={event.id} />
+            {onMeetDay ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMeetDay();
+                }}
+                className="rounded-lg border border-amber-500/40 px-3 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/10"
+              >
+                {meetDayExpanded ? "Hide meet day" : "Meet day"}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

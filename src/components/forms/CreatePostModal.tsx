@@ -5,10 +5,27 @@ import { Modal } from "@/components/ui/Modal";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-type EditingPost = { id: string; caption: string; tags: string[]; images: string[] };
-type Props = { open: boolean; onClose: () => void; editing?: EditingPost };
+type EditingPost = {
+  id: string;
+  caption: string;
+  tags: string[];
+  images: string[];
+  mediaType?: string;
+  videoUrl?: string | null;
+  videoDuration?: number | null;
+  videoPoster?: string | null;
+  postType?: "standard" | "build" | "before-after" | "collab" | "audio";
+  vehicleId?: string | null;
+  beforeImage?: string | null;
+  afterImage?: string | null;
+  inspiredByPostId?: string | null;
+  collaborators?: string[] | string | null;
+  audioUrl?: string | null;
+  scheduledAt?: string | Date | null;
+};
+type Props = { open: boolean; onClose: () => void; editing?: EditingPost; clubId?: string; onSuccess?: () => void };
 
-export function CreatePostModal({ open, onClose, editing }: Props) {
+export function CreatePostModal({ open, onClose, editing, clubId, onSuccess }: Props) {
   const router = useRouter();
   const [images, setImages] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
@@ -40,6 +57,7 @@ export function CreatePostModal({ open, onClose, editing }: Props) {
           images,
           caption: caption.trim(),
           tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+          clubId,
         }),
       });
       const data = await res.json();
@@ -48,6 +66,7 @@ export function CreatePostModal({ open, onClose, editing }: Props) {
       setImages([]);
       setCaption("");
       setTags("");
+      onSuccess?.();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save post");

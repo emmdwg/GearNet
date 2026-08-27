@@ -1821,7 +1821,7 @@ function serializeClub(
   };
 }
 
-export { serializeUser, serializeVehicle };
+export { serializeUser, serializeVehicle, mapSerializedPost };
 
 export async function getNearbyPosts(
   latitude: number,

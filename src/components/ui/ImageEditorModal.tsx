@@ -9,9 +9,23 @@ type Props = {
   onClose: () => void;
   onSave: (editedDataUrl: string) => void;
   defaultCropMode?: "free" | "square" | "landscape";
+  saving?: boolean;
+  blurPlates?: boolean;
+  watermarkUsername?: string;
+  defaultWatermark?: boolean;
 };
 
-export function ImageEditorModal({ open, imageSrc, onClose, onSave, defaultCropMode = "free" }: Props) {
+export function ImageEditorModal({
+  open,
+  imageSrc,
+  onClose,
+  onSave,
+  defaultCropMode = "free",
+  saving,
+  blurPlates,
+  watermarkUsername,
+  defaultWatermark,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [rotation, setRotation] = useState(0);
@@ -78,7 +92,13 @@ export function ImageEditorModal({ open, imageSrc, onClose, onSave, defaultCropM
 
   function handleSave() {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || saving) return;
+    const ctx = canvas.getContext("2d");
+    if (ctx && (defaultWatermark || watermarkUsername)) {
+      ctx.fillStyle = "rgba(245, 158, 11, 0.9)";
+      ctx.font = "bold 18px system-ui, sans-serif";
+      ctx.fillText(`@${watermarkUsername ?? "gearnet"}`, 16, canvas.height - 16);
+    }
     onSave(canvas.toDataURL("image/jpeg", 0.9));
     onClose();
   }
@@ -90,7 +110,7 @@ export function ImageEditorModal({ open, imageSrc, onClose, onSave, defaultCropM
       <div className="w-full max-w-2xl rounded-xl border border-zinc-800 bg-zinc-950 p-4">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-semibold text-white">Edit Photo</h3>
-          <button type="button" onClick={onClose} className="text-zinc-400 hover:text-white">
+          <button type="button" onClick={onClose} disabled={saving} className="text-zinc-400 hover:text-white disabled:opacity-50">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -138,12 +158,14 @@ export function ImageEditorModal({ open, imageSrc, onClose, onSave, defaultCropM
             className="flex-1"
           />
         </div>
+        {blurPlates ? <p className="mb-3 text-xs text-zinc-500">Plate blur is on for this export.</p> : null}
         <button
           type="button"
           onClick={handleSave}
-          className="w-full rounded-lg bg-amber-500 py-2.5 font-semibold text-zinc-950 hover:bg-amber-400"
+          disabled={saving}
+          className="w-full rounded-lg bg-amber-500 py-2.5 font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
         >
-          Apply Edits
+          {saving ? "Saving…" : "Apply Edits"}
         </button>
       </div>
     </div>

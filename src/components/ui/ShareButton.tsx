@@ -8,9 +8,10 @@ type Props = {
   text: string;
   path: string;
   className?: string;
+  iconOnly?: boolean;
 };
 
-export function ShareButton({ title, text, path, className }: Props) {
+export function ShareButton({ title, text, path, className, iconOnly }: Props) {
   const [msg, setMsg] = useState("");
 
   async function handleShare() {
@@ -38,7 +39,7 @@ export function ShareButton({ title, text, path, className }: Props) {
       }
     >
       <Share2 className="h-4 w-4" />
-      {msg || "Share"}
+      {iconOnly ? null : msg || "Share"}
     </button>
   );
 }

@@ -28,6 +28,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "At least one image and caption required" }, { status: 400 });
     }
 
+    const clubId = typeof body.clubId === "string" ? body.clubId : null;
+    if (clubId) {
+      const member = await prisma.clubMember.findUnique({
+        where: { clubId_userId: { clubId, userId: session!.user.id } },
+      });
+      if (!member) {
+        return NextResponse.json({ error: "Join the club to post" }, { status: 403 });
+      }
+    }
+
     const post = await prisma.post.create({
       data: {
         userId: session!.user.id,
@@ -35,6 +45,7 @@ export async function POST(request: Request) {
         images: imagesToJson(images),
         caption,
         tags: jsonArray(tags),
+        clubId,
       },
       include: { user: true },
     });

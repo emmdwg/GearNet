@@ -19,7 +19,15 @@ type Listing = {
   images?: string[];
 };
 
-export function ListingOwnerActions({ listing }: { listing: Listing }) {
+export function ListingOwnerActions({
+  listing,
+  onUpdated,
+  onDeleted,
+}: {
+  listing: Listing;
+  onUpdated?: () => void;
+  onDeleted?: () => void;
+}) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -30,7 +38,10 @@ export function ListingOwnerActions({ listing }: { listing: Listing }) {
     setDeleting(true);
     try {
       const res = await fetch(`/api/marketplace/${listing.id}`, { method: "DELETE" });
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        onDeleted?.();
+        router.refresh();
+      }
     } finally {
       setDeleting(false);
     }
@@ -43,7 +54,10 @@ export function ListingOwnerActions({ listing }: { listing: Listing }) {
       <OwnerMenu ownerId={listing.sellerId} onEdit={() => setEditOpen(true)} onDelete={handleDelete} label="Listing options" />
       <CreateListingModal
         open={editOpen}
-        onClose={() => setEditOpen(false)}
+        onClose={() => {
+          setEditOpen(false);
+          onUpdated?.();
+        }}
         editing={{
           id: listing.id,
           title: listing.title,
