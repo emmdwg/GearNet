@@ -10,7 +10,13 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
-export function PushRegistration({ enabled }: { enabled: boolean }) {
+export function PushRegistration({
+  enabled,
+  onEnabledChange,
+}: {
+  enabled: boolean;
+  onEnabledChange?: (enabled: boolean) => void;
+}) {
   const [status, setStatus] = useState<"idle" | "loading" | "on" | "unsupported">("idle");
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -40,6 +46,7 @@ export function PushRegistration({ enabled }: { enabled: boolean }) {
         body: JSON.stringify({ token: JSON.stringify(sub.toJSON()), platform: "web" }),
       });
       setStatus("on");
+      onEnabledChange?.(true);
     } catch {
       setStatus("idle");
     }

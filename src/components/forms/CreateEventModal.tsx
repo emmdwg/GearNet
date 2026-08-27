@@ -5,9 +5,9 @@ import { Modal } from "@/components/ui/Modal";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type Props = { open: boolean; onClose: () => void };
+type Props = { open: boolean; onClose: () => void; clubId?: string };
 
-export function CreateEventModal({ open, onClose }: Props) {
+export function CreateEventModal({ open, onClose, clubId }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -37,6 +37,7 @@ export function CreateEventModal({ open, onClose }: Props) {
           time: time.trim(),
           tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
           image: image || "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&h=400&fit=crop",
+          clubId,
         }),
       });
       const data = await res.json();

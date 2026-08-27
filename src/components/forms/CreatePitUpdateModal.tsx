@@ -5,9 +5,9 @@ import { Modal } from "@/components/ui/Modal";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type Props = { open: boolean; onClose: () => void };
+type Props = { open: boolean; onClose: () => void; onSuccess?: () => void };
 
-export function CreatePitUpdateModal({ open, onClose }: Props) {
+export function CreatePitUpdateModal({ open, onClose, onSuccess }: Props) {
   const router = useRouter();
   const [image, setImage] = useState("");
   const [caption, setCaption] = useState("");
@@ -33,6 +33,7 @@ export function CreatePitUpdateModal({ open, onClose }: Props) {
       onClose();
       setImage("");
       setCaption("");
+      onSuccess?.();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add pit update");

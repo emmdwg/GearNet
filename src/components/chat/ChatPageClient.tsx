@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 type Conversation = {
   id: string;
-  participantIds: string[];
+  participantIds?: string[];
   lastMessage: string;
   lastMessageAt: string;
   unread: number;

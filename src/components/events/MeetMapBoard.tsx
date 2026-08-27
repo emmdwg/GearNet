@@ -16,11 +16,13 @@ type Props = {
   events: Event[];
   pins: MeetPin[];
   onPinAdded?: () => void;
+  selectedEventId?: string | null;
+  onEventSelect?: (id: string) => void;
 };
 
 type GeocodeResult = { lat: string; lon: string; display_name: string };
 
-export function MeetMapBoard({ events, pins, onPinAdded }: Props) {
+export function MeetMapBoard({ events, pins, onPinAdded, selectedEventId, onEventSelect }: Props) {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [pinTitle, setPinTitle] = useState("");
@@ -165,7 +167,16 @@ export function MeetMapBoard({ events, pins, onPinAdded }: Props) {
       </div>
 
       <div className="h-80 [&_.leaflet-container]:z-0">
-        <MeetMapInner markers={markers} center={mapCenter} zoom={markers.length ? 6 : 4} onMapClick={handleMapClick} />
+        <MeetMapInner
+          markers={markers}
+          center={mapCenter}
+          zoom={markers.length ? 6 : 4}
+          onMapClick={handleMapClick}
+          selectedId={selectedEventId ? `event-${selectedEventId}` : null}
+          onMarkerClick={(markerId) => {
+            if (markerId.startsWith("event-")) onEventSelect?.(markerId.slice(6));
+          }}
+        />
       </div>
 
       {pending ? (

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export function ActivityBell() {
+export function ActivityBell({ href = "/activity", className }: { href?: string; className?: string }) {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ export function ActivityBell() {
   }, []);
 
   return (
-    <Link href="/activity" className="relative rounded-lg p-2 text-zinc-400 hover:bg-zinc-900 hover:text-white">
+    <Link href={href} className={className ?? "relative rounded-lg p-2 text-zinc-400 hover:bg-zinc-900 hover:text-white"}>
       <Bell className="h-5 w-5" />
       {unread > 0 && (
         <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-zinc-950">

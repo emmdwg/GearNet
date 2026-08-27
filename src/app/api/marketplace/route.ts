@@ -2,12 +2,29 @@ import { getListings } from "@/lib/db";
 import { requireAuth } from "@/lib/api-helpers";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { imagesToJson, normalizeImages, primaryImage } from "@/lib/social";
+import { tagMatchesVehicle } from "@/lib/marketplace-fitment";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 
-export async function GET() {
-  const listings = await getListings();
-  return NextResponse.json(listings);
+export async function GET(request: Request) {
+  const session = await getSession();
+  const listings = await getListings(session?.user?.id);
+  const fitsMyCars = new URL(request.url).searchParams.get("fitsMyCars") === "1";
+  if (!fitsMyCars || !session?.user?.id) return NextResponse.json(listings);
+
+  const vehicles = await prisma.vehicle.findMany({
+    where: { userId: session.user.id },
+    select: { year: true, make: true, model: true },
+  });
+  if (vehicles.length === 0) return NextResponse.json(listings);
+  return NextResponse.json(
+    listings.filter((listing) =>
+      (listing.fitmentTags ?? []).some((tag) =>
+        vehicles.some((v) => tagMatchesVehicle(tag, v.year, v.make, v.model)),
+      ),
+    ),
+  );
 }
 
 export async function POST(request: Request) {

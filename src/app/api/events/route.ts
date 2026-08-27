@@ -14,6 +14,16 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    const clubId = typeof body.clubId === "string" ? body.clubId : null;
+    if (clubId) {
+      const member = await prisma.clubMember.findUnique({
+        where: { clubId_userId: { clubId, userId: session!.user.id } },
+      });
+      if (!member) {
+        return NextResponse.json({ error: "Join the club to create a meet" }, { status: 403 });
+      }
+    }
+
     const post = await prisma.event.create({
       data: {
         title: body.title,
@@ -25,7 +35,8 @@ export async function POST(request: Request) {
         organizerId: session!.user.id,
         maxAttendees: body.maxAttendees,
         tags: JSON.stringify(body.tags ?? []),
-        image: body.image,
+        image: body.image || null,
+        clubId,
       },
     });
     return NextResponse.json(post, { status: 201 });

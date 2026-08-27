@@ -22,11 +22,17 @@ type ListingData = {
   seller?: { id: string; username: string };
 };
 
-export function ListingCard({ listing }: { listing: ListingData }) {
+export function ListingCard({ listing, variant }: { listing: ListingData; variant?: "browse" | "compact" }) {
   const images = listing.images && listing.images.length > 0 ? listing.images : [listing.image];
 
   return (
-    <article className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50 transition-colors hover:border-zinc-700">
+    <article
+      className={
+        variant === "compact"
+          ? "overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50"
+          : "overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50 transition-colors hover:border-zinc-700"
+      }
+    >
       <Link href={`/marketplace/${listing.id}`} className="relative block">
         <ImageCarousel images={images} alt={listing.title} />
         <div className="absolute left-3 top-3">
