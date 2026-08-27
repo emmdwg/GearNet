@@ -126,6 +126,20 @@ EXPO_PUBLIC_API_URL=http://192.168.1.100:3000
 
 Make sure the web dev server (`npm run dev`) is also running so the API is available.
 
+### App Store (iOS)
+
+EAS Build/Submit is already configured (`com.gearnet.app`). Full checklist:
+
+→ **[mobile/docs/APP_STORE.md](mobile/docs/APP_STORE.md)**
+
+```bash
+cd mobile
+npm run build:ios    # production IPA on EAS
+npm run submit:ios   # upload to App Store Connect / TestFlight
+```
+
+Before the first submit, create the app in App Store Connect and replace `ascAppId` / `appleTeamId` placeholders in `mobile/eas.json`.
+
 ## Scripts
 
 ```bash
